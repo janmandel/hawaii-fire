@@ -1,0 +1,96 @@
+
+in references for now, put in github repo later
+
+Bilucan et al. - 2024 - Susceptibility Mapping of Wildfires Using XGBoost, Random Forest and AdaBoost A Case Study of Medit
+- not helpful - learning what exactly, how?
+
+Gaining an Understanding of the National Fire Danger Rating System 2002.
+    NFDRS Inputs:
+        - Fire Danger Rating Area
+            • This is a geographical area of generally homogenous fuels, weather, and topographic features, tens of thousands of acres in size.
+
+        - Fuel Models
+            • It reflects the volume, size, weight, type, depth, surface-to-volume ratio and other physical properties of the fuel bed
+
+        - Slope Class
+            • Slope is the rise or fall in the terrain measured in the number of feet change per 100 feet of horizontal distance. (comes in 5 classes and expressed as a percentage) 
+
+        - Grass Type(s)
+            • Annual
+                - The loading of fine fuels associated with annual grasses shifts from live to dead and stays there for the duration of the season.
+            • Perennial
+                - The shift from live to dead is much slower and may even stop or reverse if the right combinations of temperature and precipitation occur during the season.
+
+        - Climate Class
+            • Grouped into four classes based on an assumption as to the length of a typical growing season
+
+        - Weather Inputs:
+            • Of the factors that affect the daily changes in fire danger, weather data are the most significant.
+            • Data should be reflective of conditions experienced or anticipated to occur within the fire danger rating area.
+            • Can be operated on either observed data to produce indices and components reflective of today’s conditions or on forecasted data to predict tomorrow’s conditions.
+
+        - Other NFDRS Parameters:
+            • State of Herbaceous Vegetation:
+                - Both annual and perennial herbaceous vegetation go through a growing period, a curing period, and a dormant period. Some of these changes can be modeled, some cannot.
+
+            • Shrub Type Code
+                - Must enter a code indicating whether their local shrub vegetation is deciduous (D) or evergreen (E).
+
+            • Staffing Index and Display Class Breakpoints
+                - The NFDRS user must first determine which indices or components they want to use to base staffing or other actions on.
+                - After the indices or components are selected, the number of breakpoints or classes must be identified.
+                - An analysis of historic indices and component values as well as fire occurrence is necessary to select the appropriate class breakpoints for local applications.
+
+            • Measured Woody Fuel Moisture
+                - The modeled fuel moisture of live woody material does not always track with the measured woody fuel moistures from sampling sites. This is because live fuel moisture values in the NFDRS are modeled values designed for the broad scale of fire danger, rather than site-specific measured values.
+                - If no new measured value is entered within 30 days, the model returns to using only weather data.
+
+            • Season Codes and Greenness Factors
+                - The season code corresponds to the season of the year the observations are being taken.
+                - Greenness factor applies to grasses and shrubs, scaled from 0 to 20 with 0 being near dead and 20 representing conditions of maximum greenness or flush
+
+            • The Keetch-Bryam Drought Index (KBDI) Initiation
+                - The index is an estimate of the amount of precipitation (in 100ths of inches) needed to bring the moisture content of the top eight inches of soil back to saturation.
+
+    NFDRS Outputs:
+        - Intermediate Outputs:
+            • Herbaceous Fuel Moisture:
+                - The approximate moisture content of live herbaceous vegetation expressed as a percentage of the oven dry weight of the sample.
+
+            • Woody Fuel Moisture:
+                - The approximate moisture content of the live woody vegetation (shrubs, small stems, branches, and foliage) expressed as percentage of the oven dry weight of the sample.
+            
+            • Dead Fuel Moisture:
+                - The moisture content of dead organic fuels, expressed as a percentage of the oven dry weight of the sample, controlled entirely by exposure to environmental conditions.
+                    - 1-Hr Fuel Moisture Content:
+                        • The modeled fuel moisture of dead fuels from herbaceous plants or roundwood less than 0.25 inches in diameter, including the uppermost layer of litter.
+                    - 10-Hr Fuel Moisture Content:
+                        • The modeled moisture content of dead fuels consisting of roundwood in the size range of 0.25 – 1 inch diameter; includes the litter layer up to 0.75 inches below the surface.
+                    - 100-Hr Fuel Moisture Content:
+                        • The modeled moisture content of dead fuels in the 1 to 3-inch diameter class; represents the forest floor from 0.75 – 4 inches below the surface.
+                    - 1000-Hr Fuel Moisture Content:
+                        • The modeled moisture content of dead fuels in the 3 to 8-inch diameter class and the layer about four inches below the forest floor surface.
+                    - X-1000 Hr Fuel Moisture Value:
+                        • The live fuel moisture recovery value, derived from the 1000-hr fuel moisture value. A function of the daily change in the 1000-hour timelag fuel moisture and the average temperature.
+    
+        - Indices and Components:
+            • Ignition Component (IC):
+                - The probability that a firebrand will cause a fire requiring suppression action.
+
+            • Spread Component (SC):
+                - A rating of the forward rate of spread of a headfire; numerically equal to the theoretical rate of spread expressed in feet-per-minute. No upper bound on value.
+
+            • Energy Release Component (ERC):
+                - A number related to the available energy (BTU) per unit area (square foot) within the flaming front at the head of a fire. Reflects the contribution of all live and dead fuels to potential fire intensity.
+
+            • Burning Index (BI):
+                - A number related to the contribution of fire behavior to the effort of containing a fire. Derived from a combination of SC and ERC, rating fire danger related to the potential flame length over a fire danger rating area. Represents the near upper limit expected.
+
+        - Fire Danger Continuum:
+            • The fire danger continuum is the range of possible outputs for a fire danger index or component, given a set of NFDRS parameters and weather input.
+
+            • Each combination of fuel model and index/component has a unique continuum.
+
+one line - methodology - maybe a sum of factors? how adjusted from data?
+
+continue
