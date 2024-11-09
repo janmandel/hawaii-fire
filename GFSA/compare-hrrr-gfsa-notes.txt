@@ -1,0 +1,194 @@
+comparison of GFSA and HRRR-HI 
+
+(wrfx) [jmandel@math-alderaan comp]$ pwd
+/home/jmandel/p/wrfxpy/comp
+lrwxrwxrwx 1 jmandel domain users   55 Nov  8 21:21 gfsa -> ../wksp/wfc-hawaii-gfsa-3km-2dom-2023-08-06_00:00:00-54
+lrwxrwxrwx 1 jmandel domain users   80 Nov  8 21:50 hrrr -> /data001/projects/jmandel/wrfxpy/wksp/wfc-hawaii-hrrr-3km-2023-08-06_00:00:00-36
+
+(wrfx) [jmandel@math-alderaan comp]$ grep desc */input.json
+gfsa/input.json:        "description": "Hawaii GFSA 3 km 2 domains"
+hrrr/input.json:        "description": "Hawaii HRRR 3km"
+
+
+
+(wd now: /data001/projects/jmandel/wrfxpy/comp)
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_00:00:00 hrrr/wrf/wrfout_d01_2023-08-06_00:00:00 T2
+Maximum difference between 'T2' in the two files: 12.960968017578125
+Mean Difference:
+ 1.1409878200954862
+Mean Absolute Difference:
+ 1.1409878200954862
+RMSE: 1.703552
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ vi compare.py
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_00:00:00 hrrr/wrf/wrfout_d01_2023-08-06_00:00:00 T2
+Maximum difference between 'T2' in the two files: 12.960968017578125
+Mean Difference:
+ -0.7376349
+Mean Absolute Difference:
+ 1.1409878200954862
+RMSE: 1.703552
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_00:00:00 hrrr/wrf/wrfout_d01_2023-08-06_00:00:00 V 
+Maximum difference between 'V' in the two files: 14.522161483764648
+Mean Difference:
+ 0.7660662
+Mean Absolute Difference:
+ 3.4702698802620273
+RMSE: 4.99778
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_00:00:00 hrrr/wrf/wrfout_d01_2023-08-06_00:00:00 PSFC
+Maximum difference between 'PSFC' in the two files: 962.640625
+Mean Difference:
+ 41.928066
+Mean Absolute Difference:
+ 103.44382731119792
+RMSE: 198.91565
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_00:00:00 hrrr/wrf/wrfout_d01_2023-08-06_00:00:00 HGT 
+Maximum difference between 'HGT' in the two files: 754.0260009765625
+Mean Difference:
+ -0.103592366
+Mean Absolute Difference:
+ 3.9771143595377603
+RMSE: 33.381157
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_01:00:00 hrrr/wrf/wrfout_d01_2023-08-06_01:00:00 HGT
+Maximum difference between 'HGT' in the two files: 754.0260009765625
+Mean Difference:
+ -0.103592366
+Mean Absolute Difference:
+ 3.9771143595377603
+RMSE: 33.381157
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_01:00:00 hrrr/wrf/wrfout_d01_2023-08-06_01:00:00 T2 
+Maximum difference between 'T2' in the two files: 5.542510986328125
+Mean Difference:
+ -0.33731067
+Mean Absolute Difference:
+ 0.45741091834174263
+RMSE: 0.68598795
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 T2
+Maximum difference between 'T2' in the two files: 4.841400146484375
+Mean Difference:
+ -0.38402605
+Mean Absolute Difference:
+ 0.44187018606397843
+RMSE: 0.64649695
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ vi compare.py
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+RMS scale )L2 norms of var 1): 0.014582274
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ vi compare.py
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+RMS scale L2 norms of var 1: 0.014582274
+Traceback (most recent call last):
+  File "compare.py", line 55, in <module>
+    print("relative RMS",rmse/rmse_scale)
+NameError: name 'rmse_scale' is not defined
+(wrfx) [jmandel@math-alderaan comp]$ vi compare.py
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+RMS scale L2 norms of var 1: 0.014582274
+relative RMS 0.061156776
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 U 
+Maximum difference between 'U' in the two files: 32.83968734741211
+Mean Difference:
+ 4.586912
+Mean Absolute Difference:
+ 6.693232522551546
+RMSE: 11.311524
+RMS scale L2 norms of var 1: 14.99843
+relative RMS 0.75418055
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 V
+Maximum difference between 'V' in the two files: 12.965824127197266
+Mean Difference:
+ 0.4267052
+Mean Absolute Difference:
+ 2.9289129617697593
+RMSE: 4.173217
+RMS scale L2 norms of var 1: 5.554025
+relative RMS 0.751386
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+RMS scale L2 norms of var 1: 0.014582274
+relative RMS 0.061156776
+The variable data differs between the two files.
+
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 Q2
+Maximum difference between 'Q2' in the two files: 0.004900599829852581
+Mean Difference:
+ -0.00054933154
+Mean Absolute Difference:
+ 0.0006886745492617289
+RMSE: 0.0008918048
+RMS scale L2 norms of var 1: 0.014582274
+relative RMS 0.061156776
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 T2
+Maximum difference between 'T2' in the two files: 4.841400146484375
+Mean Difference:
+ -0.38402605
+Mean Absolute Difference:
+ 0.44187018606397843
+RMSE: 0.64649695
+RMS scale L2 norms of var 1: 297.3866
+relative RMS 0.0021739276
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 XLONG
+Maximum difference between 'XLONG' in the two files: 1.52587890625e-05
+Mean Difference:
+ 4.4703484e-08
+Mean Absolute Difference:
+ 2.268287870619032e-07
+RMSE: 1.860412e-06
+RMS scale L2 norms of var 1: 155.47404
+relative RMS 1.1966062e-08
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ python compare.py gfsa/wrf/wrfout_d02_2023-08-06_02:00:00 hrrr/wrf/wrfout_d01_2023-08-06_02:00:00 XLAT 
+Maximum difference between 'XLAT' in the two files: 8.392333984375e-05
+Mean Difference:
+ 5.2570467e-05
+Mean Absolute Difference:
+ 5.257046884960598e-05
+RMSE: 5.3653835e-05
+RMS scale L2 norms of var 1: 19.601423
+relative RMS 2.7372419e-06
+The variable data differs between the two files.
+(wrfx) [jmandel@math-alderaan comp]$ 
+

@@ -1,0 +1,57 @@
+{
+    "wps_namelist_path": "etc/nlists/default.wps",
+    "wrf_namelist_path": "etc/nlists/default.input",
+    "fire_namelist_path": "etc/nlists/default.fire",
+    "emissions_namelist_path": "etc/nlists/default.fire_emissions",
+    "grid_code": "hawaii-hrrr-3km",
+    "start_utc": "2023-08-06:00:00:00",
+    "end_utc": "2023-08-07:12:00:00",
+    "grib_source": "HRRR",
+    "download_whole_cycle": false,
+    "wps_geog_path": "/data001/projects/jmandel/WPS_GEOG",
+    "ifire": 0,
+    "domains": {
+        "1": {
+            "cell_size": [
+                3000,
+                3000
+            ],
+            "domain_size": [
+                97,
+                97
+            ],
+            "subgrid_ratio": [
+                0,
+                0
+            ],
+            "geog_res": "30s",
+            "center_latlon": [
+                19.58879485,
+                -155.472021
+            ],
+            "truelats": [
+                19.58879485,
+                19.58879485
+            ],
+            "stand_lon": -155.2275,
+            "history_interval": 60,
+            "time_step": 8
+        }
+    },
+    "ignitions": {},
+    "num_nodes": 1,
+    "ppn": 64,
+    "wall_time_hrs": 96,
+    "qsys": "alderaan",
+    "postproc": {
+        "1": [
+            "T2",
+            "PSFC",
+            "WINDSPD",
+            "WINDVEC",
+            "CLOUDTO700HPA"
+        ],
+        "shuttle": "incremental",
+        "description": "Hawaii HRRR 3km"
+    }
+}
