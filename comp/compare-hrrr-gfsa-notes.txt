@@ -1,4 +1,5 @@
 comparison of GFSA and HRRR-HI 
+wrfxpy at commit 9168be7571222dfae49d0982213382d5e6c8975f (HEAD -> hrrr-hawaii,
 
 (wrfx) [jmandel@math-alderaan comp]$ pwd
 /home/jmandel/p/wrfxpy/comp
