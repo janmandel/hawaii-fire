@@ -33,6 +33,8 @@ def check_files_and_levels(start_date, end_date, template):
         # Check if file exists and count levels
         level_count = count_vertical_levels(file_path)
 
+        print(file_path,level_count)
+
         if level_count is None:
             # File is missing
             gap_dates.append(current_date)
