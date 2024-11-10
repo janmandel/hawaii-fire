@@ -193,3 +193,4 @@ relative RMS 2.7372419e-06
 The variable data differs between the two files.
 (wrfx) [jmandel@math-alderaan comp]$ 
 
+rain is zero both in HRRR and GFSA sim
