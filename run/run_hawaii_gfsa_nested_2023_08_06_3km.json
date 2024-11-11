@@ -3,7 +3,7 @@
     "wrf_namelist_path": "etc/nlists/default.input",
     "fire_namelist_path": "etc/nlists/default.fire",
     "emissions_namelist_path": "etc/nlists/default.fire_emissions",
-    "grid_code": "hawaii-gfsa-3km-2dom",
+    "grid_code": "run_hawaii-gfsa-3km-2dom",
     "start_utc": "2023-08-06:00:00:00",
     "end_utc": "2023-08-08:06:00:00",
     "grib_source": "GFSA",
@@ -33,7 +33,7 @@
                19.58879485
             ],
             "stand_lon": -155.2275,
-            "history_interval": 180,
+            "history_interval": 480 ,
             "time_step":50 
         },
         "2": {
