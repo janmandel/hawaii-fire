@@ -26,8 +26,11 @@ def read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, pr
         numpy array: Updated cumulative rainfall for the current hour, to be used in the next call.
     """
     # Construct directory and file paths
-    cycle_dir = f"{prefix}{cycle_start_time.strftime('%m-%d_%H:%M:%S')}{suffix}"
-    wrf_file = f"{cycle_dir}/wrfout_d02_{hour_time.strftime('%Y-%m-%d_%H:%M:%S')}"
+    cycle_dir = f"{prefix}{cycle_start_time.strftime('%Y-%m-%d_%H:%M:%S')}{suffix}"
+    file_name = f"wrfout_d02_{hour_time.strftime('%Y-%m-%d_%H:%M:%S')}"
+    wrf_file = f"{cycle_dir}/{file_name}"
+    
+    logging.info(f"Processing file {file_name}")
     
     if not os.path.exists(cycle_dir) or not os.path.exists(wrf_file):
         logging.warning(f"Directory or file {wrf_file} missing, filling with NaNs.")
@@ -136,11 +139,11 @@ if __name__ == "__main__":
     end_date = datetime(2024, 11, 2)
     
     # List of WRF variables to read (example list)
-    variables = ['RAIN', 'TEMP', 'HUMIDITY']  # Example variables
+    variables = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'SWDOWN', 'SWUPT']  # Example variables
     
     # Define prefix and suffix for directory names
-    prefix = "simulation_prefix_"
-    suffix = "_simulation_suffix"
+    prefix = "/data001/projects/jmandel/wrfxpy/wksp/wfc-run_hawaii-gfsa-3km-2dom-"
+    suffix = "-192/wrf"
     
     # Run the main function and collect results
     results = build_3d_arrays(start_date, end_date, variables, prefix, suffix)
