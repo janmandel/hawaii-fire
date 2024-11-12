@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 import numpy as np
@@ -22,7 +23,7 @@ def read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, pr
     
     Returns:
         dict: A dictionary where keys are variable names and values are 2D numpy arrays containing data.
-              Returns NaNs if the file or directory does not exist.
+              Returns {} if file or directory does not exist.
         numpy array: Updated cumulative rainfall for the current hour, to be used in the next call.
     """
     # Construct directory and file paths
@@ -34,7 +35,7 @@ def read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, pr
     
     if not os.path.exists(cycle_dir) or not os.path.exists(wrf_file):
         logging.warning(f"Directory or file {wrf_file} missing, filling with NaNs.")
-        return {var: np.full((100, 100), np.nan) for var in variables}, prev_rain
+        return {}, prev_rain
 
     result = {}
     with nc.Dataset(wrf_file) as ds:
@@ -45,62 +46,75 @@ def read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, pr
                 result[var] = rain_total - (prev_rain if prev_rain is not None else rain_total)
                 prev_rain = rain_total  # Update prev_rain for the next hour in the current cycle
             else:
-                result[var] = ds.variables[var][0]  # Read the variable directly
+                result[var] = ds.variables[var][0]  # Read the variable directly as 2D
     return result, prev_rain
 
 
-def build_3d_arrays(start_date, end_date, variables, prefix, suffix, omit_first=3):
+def build_3d_arrays(start_time, end_time, variables, prefix, suffix, omit_first=3):
     """
     Constructs 3D arrays for specified WRF variables across multiple simulation cycles.
     
     Args:
-        start_date (datetime): Start date for the simulations.
-        end_date (datetime): End date for the simulations.
+        start_timedate (datetime): Start time for the simulations.
+        end_time (datetime): End time for the simulations.
         variables (list of str): List of WRF variable names to read.
         prefix (str): Prefix for the directory name.
         suffix (str): Suffix for the directory name.
         omit_first (int): Number of initial spinup hours to omit in the first cycle.
 
     Returns:
-        dict: A dictionary with 'Times' (1D array of datetime objects) and each variable (3D array of data).
+        dict: A dictionary with 'times' (1D array of datetime objects) and each variable (3D array of data).
     """
-    # Initialize storage for times and variables
-    times = []
-    data_dict = {var: [] for var in variables}
+    # get dimensions
+    hourly_data, prev_rain = read_wrf_variable(start_time, start_time, ['XLONG','XLAT'], prefix, suffix)
+    XLONG = hourly_data['XLONG']
+    XLAT = hourly_data['XLAT']
+    hours = int((end_date - start_date).total_seconds()/3600 + 1)
+    print(XLONG.shape)
+    nx, ny = XLONG.shape
+    #if h != 1 :
+    #   logging.error('wrfouts must have one timeframe only')
+    #   sys.exit(1)
+
+    logging.info(f'Initializing storage for {hours} hours')
+    date = [start_time + timedelta(hours=i) for i in range(hours)]
+    data_dict = {'date':date, 'XLONG':XLONG, 'XLAT':XLAT}
+    data_dict.update({var: np.full((hours, nx, ny), np.nan, dtype=np.float32) for var in variables})
     
     # Generate the list of cycle start times
     cycle_start_times = []
     current_time = start_date
     while current_time <= end_date:
         cycle_start_times.append(current_time)
-        current_time += timedelta(days=8)
+        current_time += timedelta(days=7)
 
     # Iterate over each cycle and process data
     for i, cycle_start_time in enumerate(cycle_start_times):
-        logging.info(f"Processing cycle starting at {cycle_start_time}")
+        logging.info(f"Processing cycle {i} starting at {cycle_start_time}")
         prev_rain = None  # Reset rainfall accumulation for each new cycle
         
         # Loop over each hour in the 8-day cycle
         for hour in range(24 * 8):
             hour_time = cycle_start_time + timedelta(hours=hour)
             
-            # Skip initial hours in the first cycle for spinup
-            if i == 0 and hour < omit_first:
+            # Skip initial for spinup
+            if (i == 0 and hour < omit_first) or hour < 23:
                 continue
-            
+            # index in the arrays
+            x = (hour_time - start_time).total_seconds()           
+            hour = x/3600
+            if hour * 3600 != x:
+                logging.error(f"Time since start {x} seconds is not full hours")
+                sys.exit(1)
+            logging.info(f"Reading data for cycle  hour {hour} at {hour_time}")
             # Read data for each variable at the specific hour
             hourly_data, prev_rain = read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, prev_rain)
-            for var, data in hourly_data.items():
-                data_dict[var].append(data)
-            
-            times.append(hour_time)
 
-    # Stack data into 3D arrays with shape (time, lat, lon)
-    for var in data_dict:
-        data_dict[var] = np.stack(data_dict[var], axis=0)
-    
+            for var, data in hourly_data.items():
+                data_dict[var][hour,:,:] = hourly_data[var]
+
     # Return a dictionary with time and variable arrays
-    return {'Times': np.array(times), **data_dict}
+    return(data_dict)
 
 
 def write_to_netcdf(data, output_file):
@@ -146,14 +160,20 @@ if __name__ == "__main__":
     suffix = "-192/wrf"
     
     # Run the main function and collect results
-    results = build_3d_arrays(start_date, end_date, variables, prefix, suffix)
+    data = build_3d_arrays(start_date, end_date, variables, prefix, suffix)
+
+    file = "data.pkl"
+
+    with open(file,"wb") as f:
+        pickle.dump(data,f)
+
     
     # Specify output NetCDF file path
-    output_file = 'wrf_simulation_output.nc'
+    # output_file = 'wrf_simulation_output.nc'
     
     # Write results to NetCDF
-    write_to_netcdf(results, output_file)
+    # write_to_netcdf(results, output_file)
     
     # Log the completion of the process
-    logging.info("Data processing and writing to NetCDF complete.")
+    logging.info(f"Data processing and writing to file {file} complete.")
 
