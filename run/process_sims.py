@@ -36,6 +36,8 @@ def time_string(dt):
 def time_to_char_array(time_str):
     return np.array(list(time_str), dtype='S1')
 
+if 'RAIN' in variable_names:
+    do_rain = True    
 
 cycle_start_time = datetime.strptime(start_timestr, "%Y-%m-%d_%H:%M:%S")
 time_end_time = datetime.strptime(end_timestr, "%Y-%m-%d_%H:%M:%S")
@@ -54,10 +56,20 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
     
     logging.info(f"Starting cycle {cycle_index} at {cycle_start_time} output from {start_time} to {end_time}")
 
-    # Loop over each hour in the unique data duration
     time_index = 0
-    current_time = start_time
+    if do_rain:
+        current_time = start_time - timedelta(hours=1)  # add hour before the unique cycle starts, for base accumulated rain
+    else:
+        current_time = start_time
+
+    prev_rain = None
+
+    # Loop over each hour  in the unique data duration
     while current_time < end_time:
+
+        # only write output and increment time index if in the unique part of teh cycle
+        do_output = (current_time >=  start_time)
+
         # Generate the file path
         frame_timestr = time_string(current_time)
         filepath = f"{prefix}{time_string(cycle_start_time)}{suffix}{frame_timestr}"
@@ -81,30 +93,45 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
                     for var_name in variable_names:
                         # Create variable in the output file with the same dimensions
                         ncfile.createVariable(var_name, 'f4', ('time', 'y', 'x'), fill_value=np.nan, zlib=True, complevel=9)
+                    if do_rain:
+                        # RAIN will be treated differently
+                        variable_names.remove('RAIN')
 
-                # Copy each variable listed in `variable_names`
-                for var_name in variable_names:
-                    if var_name == 'RAIN':
-                        # Calculate rainfall incrementally based on RAINC, RAINSH, and RAINNC
-                        rain_total = src_file.variables['RAINC'][0,:,:] + src_file.variables['RAINSH'][0,:,:] + src_file.variables['RAINNC'][0,:,:]
-                        ncfile.variables[var_name][time_index, :, :] = rain_total
-                        # result[var] = rain_total - (prev_rain if prev_rain is not None else rain_total)
-                        # prev_rain = rain_total  # Update prev_rain for the next hour in the current cycle 
+                # get accumulated rain in any case, including the hour before cycle starts
+                if do_rain:
+                    # Calculate rainfall incrementally based on RAINC, RAINSH, and RAINNC
+                    rain_total = src_file.variables['RAINC'][0,:,:] + src_file.variables['RAINSH'][0,:,:] + src_file.variables['RAINNC'][0,:,:]
+
+                if do_output: 
+                    if do_rain and prev_rain is None:
+                        logging.info("Skipping time frame, cannot compute incremental rain without previous accumulated rain")
                     else:
-                        # Copy data from input file for the current time step
-                        ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][0,:,:]
+                        logging.info("Writing output row")
+                        if do_rain: 
+                             ncfile.variables['RAIN'][time_index, :, :] = rain_total - prev_rain
+    
+                        # Copy all variable listed in `variable_names to the outout
+                        for var_name in variable_names:
+                            ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][0,:,:]
+                else:
+                    logging.info('Only compute and remember total accumulated rain if requested')
+                     
+                if do_rain:
+                    # remember previous rain in any case
+                    prev_rain = rain_total  # Update prev_rain for the next hour in the current cycle 
+     
+
         else:
             logging.info('Missing '+file_msg)
             # Fill each variable with NaN for the current time step if the file is missing
             for var_name in variable_names:
                 ncfile.variables[var_name][time_index, :, :] = np.nan
+            prev_rain = None
 
-        # Store the time string in the `times` variable
-        times[time_index, :] = time_to_char_array(frame_timestr)
-
-        # Increment time step and time index
+        # increment time
         current_time += timedelta(hours=1)
-        time_index += 1
+        if current_time >=  start_time: 
+            time_index += 1
 
         # logging.info('netCDF sync')
         ncfile.sync()
