@@ -47,13 +47,12 @@ ending = False
 
 # Loop over each cycle
 while True:  # This can run indefinitely; remove break to continue beyond one cycle
-    logging.info(f"Starting cycle {cycle_index} at {cycle_start_time}")
 
     # Define the time range for the cycle, excluding spin-up
     start_time = cycle_start_time + timedelta(hours=spinup_hours)
     end_time = start_time + timedelta(hours=unique_data_duration_hours)
     
-    logging.info(f"Recording from {start_time} to {end_time}")
+    logging.info(f"Starting cycle {cycle_index} at {cycle_start_time} output from {start_time} to {end_time}")
 
     # Loop over each hour in the unique data duration
     time_index = 0
@@ -62,10 +61,11 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
         # Generate the file path
         frame_timestr = time_string(current_time)
         filepath = f"{prefix}{time_string(cycle_start_time)}{suffix}{frame_timestr}"
-        logging.info(f"File {time_index} {filepath}")
+        file_msg = f"File {time_index} {filepath}"
 
         if os.path.exists(filepath):
             # Open the input file
+            logging.info('Processing '+file_msg)
             with Dataset(filepath, 'r') as src_file:
                 # Copy XLONG and XLAT if this is the first file and they haven't been set yet
                 if not first_file_processed:
@@ -94,7 +94,7 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
                         # Copy data from input file for the current time step
                         ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][0,:,:]
         else:
-            logging.info(f"File missing: {filepath}. Filling with NaN for this time frame.")
+            logging.info('Missing '+file_msg)
             # Fill each variable with NaN for the current time step if the file is missing
             for var_name in variable_names:
                 ncfile.variables[var_name][time_index, :, :] = np.nan
