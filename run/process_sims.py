@@ -60,8 +60,7 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
         # Generate the file path
         frame_timestr = format_time_string(current_time)
         filepath = f"{prefix}{cycle_start_time.strftime('%Y-%m-%d_%H:%M:%S')}{suffix}{frame_timestr}"
-
-        logging.info(f"Processing file: {filepath}")
+        logging.info(f"File {time_index} {filepath}")
 
         if os.path.exists(filepath):
             # Open the input file
