@@ -68,8 +68,8 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
             with Dataset(filepath, 'r') as src_file:
                 # Copy XLONG and XLAT if this is the first file and they haven't been set yet
                 if not first_file_processed:
-                    XLONG_data = src_file.variables['XLONG'][:]
-                    XLAT_data = src_file.variables['XLAT'][:]
+                    XLONG_data = src_file.variables['XLONG'][0,:,:]
+                    XLAT_data = src_file.variables['XLAT'][0,:,:]
                     ncfile.createDimension('y', XLONG_data.shape[0])
                     ncfile.createDimension('x', XLONG_data.shape[1])
                     XLONG_var = ncfile.createVariable('XLONG', 'f4', ('y', 'x'))
