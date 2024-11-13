@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %
 
 # Constants and configuration
 start_timestr = "2011-01-01_00:00:00"
-end_timestr = "2011-02-01_00:00:00"
+end_timestr = "2011-01-13_00:00:00"
 prefix = "wrfxpy/wksp/wfc-run_hawaii-gfsa-3km-2dom-"
 suffix = "-192/wrf/wrfout_d02_"
 cycle_duration_hours = 24 * 8  # Total hours each cycle runs
@@ -78,7 +78,7 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
                     first_file_processed = True  # Mark that the 2D variables have been copied
                     for var_name in variable_names:
                         # Create variable in the output file with the same dimensions
-                        ncfile.createVariable(var_name, 'f4', ('time', 'y', 'x'), fill_value=np.nan)
+                        ncfile.createVariable(var_name, 'f4', ('time', 'y', 'x'), fill_value=np.nan, zlib=True, complevel=9)
 
                 # Copy each variable listed in `variable_names`
                 for var_name in variable_names:
@@ -97,7 +97,11 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
         current_time += timedelta(hours=1)
         time_index += 1
 
+        # logging.info('netCDF sync')
+        ncfile.sync()
+
     # Sync to ensure data is written for the current cycle
+    # logging.info('netCDF sync')
     ncfile.sync()
 
     # Move to the next cycle start
