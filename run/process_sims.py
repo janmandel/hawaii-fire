@@ -1,179 +1,112 @@
 import os
-import sys
+import numpy as np
 import logging
 from datetime import datetime, timedelta
-import numpy as np
-import netCDF4 as nc
+from netCDF4 import Dataset
 
-# Set up logging for tracking progress and issues
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
+# Constants and configuration
+prefix = "wrfxpy/wksp/wfc-run_hawaii-gfsa-3km-2dom-"
+suffix = "-192/wrf/wrfout_d02_"
+cycle_duration_hours = 24 * 8  # Total hours each cycle runs
+unique_data_duration_hours = 24 * 7  # Hours of unique data in each cycle
+spinup_hours = 24  # Hours of spinup data to ignore
+output_file = "processed_output.nc"
+variable_names = ['TEMP', 'RH', 'WIND']  # Example list of variables to copy
 
-def read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, prev_rain=None):
-    """
-    Reads specified WRF variables from a file in a given simulation cycle and hour.
-    
-    Args:
-        cycle_start_time (datetime): The start time of the simulation cycle, used for directory naming.
-        hour_time (datetime): The exact hour to read within the cycle, used for file naming.
-        variables (list of str): List of variable names to read.
-        prefix (str): Prefix for the directory name.
-        suffix (str): Suffix for the directory name.
-        prev_rain (numpy array or None): Accumulated rainfall from the previous hour in the current cycle.
-    
-    Returns:
-        dict: A dictionary where keys are variable names and values are 2D numpy arrays containing data.
-              Returns {} if file or directory does not exist.
-        numpy array: Updated cumulative rainfall for the current hour, to be used in the next call.
-    """
-    # Construct directory and file paths
-    cycle_dir = f"{prefix}{cycle_start_time.strftime('%Y-%m-%d_%H:%M:%S')}{suffix}"
-    file_name = f"wrfout_d02_{hour_time.strftime('%Y-%m-%d_%H:%M:%S')}"
-    wrf_file = f"{cycle_dir}/{file_name}"
-    
-    logging.info(f"Processing file {file_name}")
-    
-    if not os.path.exists(cycle_dir) or not os.path.exists(wrf_file):
-        logging.warning(f"Directory or file {wrf_file} missing, filling with NaNs.")
-        return {}, prev_rain
+# Create and configure the NetCDF file
+ncfile = Dataset(output_file, 'w', format='NETCDF4')
+ncfile.createDimension('time', None)  # unlimited time dimension
+ncfile.createDimension('string_len', 19)  # length for ISO 8601 format strings
 
-    result = {}
-    with nc.Dataset(wrf_file) as ds:
-        for var in variables:
-            if var == 'RAIN':
-                # Calculate rainfall incrementally based on RAINC, RAINSH, and RAINNC
-                rain_total = ds.variables['RAINC'][0] + ds.variables['RAINSH'][0] + ds.variables['RAINNC'][0]
-                result[var] = rain_total - (prev_rain if prev_rain is not None else rain_total)
-                prev_rain = rain_total  # Update prev_rain for the next hour in the current cycle
-            else:
-                result[var] = ds.variables[var][0]  # Read the variable directly as 2D
-    return result, prev_rain
+# Define variables: time as character array, and placeholder for XLONG and XLAT
+times = ncfile.createVariable('times', 'S1', ('time', 'string_len'))
+XLONG_var = None
+XLAT_var = None
 
+# Function to format datetime objects to the desired format
+def format_time_string(dt):
+    return dt.strftime("%Y-%m-%d_%H:%M:%S")
 
-def build_3d_arrays(start_time, end_time, variables, prefix, suffix, omit_first=3):
-    """
-    Constructs 3D arrays for specified WRF variables across multiple simulation cycles.
-    
-    Args:
-        start_timedate (datetime): Start time for the simulations.
-        end_time (datetime): End time for the simulations.
-        variables (list of str): List of WRF variable names to read.
-        prefix (str): Prefix for the directory name.
-        suffix (str): Suffix for the directory name.
-        omit_first (int): Number of initial spinup hours to omit in the first cycle.
+# Function to convert formatted time strings to a char array for NetCDF
+def time_to_char_array(time_str):
+    return np.array(list(time_str), dtype='S1')
 
-    Returns:
-        dict: A dictionary with 'times' (1D array of datetime objects) and each variable (3D array of data).
-    """
-    # get dimensions
-    hourly_data, prev_rain = read_wrf_variable(start_time, start_time, ['XLONG','XLAT'], prefix, suffix)
-    XLONG = hourly_data['XLONG']
-    XLAT = hourly_data['XLAT']
-    hours = int((end_date - start_date).total_seconds()/3600 + 1)
-    print(XLONG.shape)
-    nx, ny = XLONG.shape
-    #if h != 1 :
-    #   logging.error('wrfouts must have one timeframe only')
-    #   sys.exit(1)
+# Initial cycle start time
+cycle_start_time = datetime.strptime("2012-04-21_00:00:00", "%Y-%m-%d_%H:%M:%S")
+cycle_index = 0
+first_file_processed = False
 
-    logging.info(f'Initializing storage for {hours} hours')
-    date = [start_time + timedelta(hours=i) for i in range(hours)]
-    data_dict = {'date':date, 'XLONG':XLONG, 'XLAT':XLAT}
-    data_dict.update({var: np.full((hours, nx, ny), np.nan, dtype=np.float32) for var in variables})
-    
-    # Generate the list of cycle start times
-    cycle_start_times = []
-    current_time = start_date
-    while current_time <= end_date:
-        cycle_start_times.append(current_time)
-        current_time += timedelta(days=7)
+# Loop over each cycle
+while True:  # This can run indefinitely; remove break to continue beyond one cycle
+    logging.info(f"Starting cycle {cycle_index} starting at {cycle_start_time}")
 
-    # Iterate over each cycle and process data
-    for i, cycle_start_time in enumerate(cycle_start_times):
-        logging.info(f"Processing cycle {i} starting at {cycle_start_time}")
-        prev_rain = None  # Reset rainfall accumulation for each new cycle
-        
-        # Loop over each hour in the 8-day cycle
-        for hour in range(24 * 8):
-            hour_time = cycle_start_time + timedelta(hours=hour)
-            
-            # Skip initial for spinup
-            if (i == 0 and hour < omit_first) or hour < 23:
-                continue
-            # index in the arrays
-            x = (hour_time - start_time).total_seconds()           
-            hour = x/3600
-            if hour * 3600 != x:
-                logging.error(f"Time since start {x} seconds is not full hours")
-                sys.exit(1)
-            logging.info(f"Reading data for cycle  hour {hour} at {hour_time}")
-            # Read data for each variable at the specific hour
-            hourly_data, prev_rain = read_wrf_variable(cycle_start_time, hour_time, variables, prefix, suffix, prev_rain)
+    # Define the time range for the cycle, excluding spin-up
+    start_time = cycle_start_time + timedelta(hours=spinup_hours)
+    end_time = start_time + timedelta(hours=unique_data_duration_hours)
 
-            for var, data in hourly_data.items():
-                data_dict[var][hour,:,:] = hourly_data[var]
+    # Loop over each hour in the unique data duration
+    time_index = 0
+    current_time = start_time
+    while current_time < end_time:
+        # Generate the file path
+        frame_timestr = format_time_string(current_time)
+        filepath = f"{prefix}{cycle_start_time.strftime('%Y-%m-%d_%H:%M:%S')}{suffix}{frame_timestr}"
 
-    # Return a dictionary with time and variable arrays
-    return(data_dict)
+        # Log file processing start
+        logging.info(f"Processing file: {filepath}")
 
+        # Check if the file exists
+        if os.path.exists(filepath):
+            # Open the input file
+            with Dataset(filepath, 'r') as src_file:
+                # Copy XLONG and XLAT if this is the first file and they haven't been set yet
+                if not first_file_processed:
+                    XLONG_data = src_file.variables['XLONG'][:]
+                    XLAT_data = src_file.variables['XLAT'][:]
+                    ncfile.createDimension('y', XLONG_data.shape[0])
+                    ncfile.createDimension('x', XLONG_data.shape[1])
+                    XLONG_var = ncfile.createVariable('XLONG', 'f4', ('y', 'x'))
+                    XLAT_var = ncfile.createVariable('XLAT', 'f4', ('y', 'x'))
+                    XLONG_var[:, :] = XLONG_data
+                    XLAT_var[:, :] = XLAT_data
+                    first_file_processed = True  # Mark that the 2D variables have been copied
 
-def write_to_netcdf(data, output_file):
-    """
-    Writes the given data dictionary to a NetCDF file.
-    
-    Args:
-        data (dict): Dictionary containing 'Times' (1D datetime array) and 3D arrays for each variable.
-        output_file (str): Path to the output NetCDF file.
-    """
-    with nc.Dataset(output_file, 'w', format='NETCDF4') as ds:
-        # Create dimensions
-        time_dim = ds.createDimension('time', len(data['Times']))
-        lat_dim = ds.createDimension('lat', data[next(iter(data))].shape[1])  # Assuming variable shape consistency
-        lon_dim = ds.createDimension('lon', data[next(iter(data))].shape[2])
+                # Copy each variable listed in `variable_names`
+                for var_name in variable_names:
+                    if var_name not in ncfile.variables:
+                        # Create variable in the output file with the same dimensions
+                        ncfile.createVariable(var_name, 'f4', ('time', 'y', 'x'), fill_value=np.nan)
+                    
+                    # Copy data from input file for the current time step
+                    ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][:]
+        else:
+            logging.info(f"File missing: {filepath}. Filling with NaN for this time frame.")
+            # Fill each variable with NaN for the current time step if the file is missing
+            for var_name in variable_names:
+                if var_name not in ncfile.variables:
+                    # Create variable in the output file with NaNs if it doesn’t exist
+                    ncfile.createVariable(var_name, 'f4', ('time', 'y', 'x'), fill_value=np.nan)
+                
+                ncfile.variables[var_name][time_index, :, :] = np.nan
 
-        # Create time variable
-        times = ds.createVariable('Times', 'f8', ('time',))
-        times.units = 'hours since 2011-01-01 00:00:00'
-        times.calendar = 'gregorian'
-        times[:] = nc.date2num(data['Times'], units=times.units, calendar=times.calendar)
+        # Store the time string in the `times` variable
+        times[time_index, :] = time_to_char_array(frame_timestr)
 
-        # Create variables for each data array
-        for var, values in data.items():
-            if var == 'Times':
-                continue  # Skip the 'Times' key as it has been handled
-            var_data = ds.createVariable(var, 'f4', ('time', 'lat', 'lon'), fill_value=np.nan)
-            var_data[:] = values
+        # Increment time step and time index
+        current_time += timedelta(hours=1)
+        time_index += 1
 
-    logging.info(f"Data successfully written to {output_file}")
+    # Sync to ensure data is written for the current cycle
+    ncfile.sync()
 
+    # Move to the next cycle start
+    cycle_start_time += timedelta(hours=24 * 7)  # Shift to the next cycle
+    cycle_index += 1
+    break  # Remove this break statement to continue indefinitely or add stop conditions
 
-if __name__ == "__main__":
-    # Set the start and end dates for the simulations
-    start_date = datetime(2011, 1, 1)
-    end_date = datetime(2024, 11, 2)
-    
-    # List of WRF variables to read (example list)
-    variables = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'SWDOWN', 'SWUPT']  # Example variables
-    
-    # Define prefix and suffix for directory names
-    prefix = "/data001/projects/jmandel/wrfxpy/wksp/wfc-run_hawaii-gfsa-3km-2dom-"
-    suffix = "-192/wrf"
-    
-    # Run the main function and collect results
-    data = build_3d_arrays(start_date, end_date, variables, prefix, suffix)
-
-    file = "data.pkl"
-
-    with open(file,"wb") as f:
-        pickle.dump(data,f)
-
-    
-    # Specify output NetCDF file path
-    # output_file = 'wrf_simulation_output.nc'
-    
-    # Write results to NetCDF
-    # write_to_netcdf(results, output_file)
-    
-    # Log the completion of the process
-    logging.info(f"Data processing and writing to file {file} complete.")
+# Close the NetCDF file
+ncfile.close()
 
