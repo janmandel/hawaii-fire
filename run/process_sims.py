@@ -29,12 +29,13 @@ XLONG_var = None
 XLAT_var = None
 
 # Function to format datetime objects to the desired format
-def format_time_string(dt):
+def time_string(dt):
     return dt.strftime("%Y-%m-%d_%H:%M:%S")
 
 # Function to convert formatted time strings to a char array for NetCDF
 def time_to_char_array(time_str):
     return np.array(list(time_str), dtype='S1')
+
 
 cycle_start_time = datetime.strptime(start_timestr, "%Y-%m-%d_%H:%M:%S")
 time_end_time = datetime.strptime(end_timestr, "%Y-%m-%d_%H:%M:%S")
@@ -59,8 +60,8 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
     current_time = start_time
     while current_time < end_time:
         # Generate the file path
-        frame_timestr = format_time_string(current_time)
-        filepath = f"{prefix}{cycle_start_time.strftime('%Y-%m-%d_%H:%M:%S')}{suffix}{frame_timestr}"
+        frame_timestr = time_string(current_time)
+        filepath = f"{prefix}{time_string(cycle_start_time)}{suffix}{frame_timestr}"
         logging.info(f"File {time_index} {filepath}")
 
         if os.path.exists(filepath):
