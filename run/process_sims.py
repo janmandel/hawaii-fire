@@ -16,7 +16,7 @@ cycle_duration_hours = 24 * 8  # Total hours each cycle runs
 unique_data_duration_hours = 24 * 7  # Hours of unique data in each cycle
 spinup_hours = 24  # Hours of spinup data to ignore
 output_file = "processed_output.nc"
-variable_names = ['T2', 'Q2', 'U10', 'V10']  # Example list of variables to copy
+variable_names = ['T2', 'Q2', 'U10', 'V10', 'RAIN',]  # variables to copy
 
 # Create and configure the output NetCDF file
 ncfile = Dataset(output_file, 'w', format='NETCDF4')
@@ -42,6 +42,7 @@ time_end_time = datetime.strptime(end_timestr, "%Y-%m-%d_%H:%M:%S")
 # Initial cycle start time
 cycle_index = 0
 first_file_processed = False
+ending = False
 
 # Loop over each cycle
 while True:  # This can run indefinitely; remove break to continue beyond one cycle
@@ -82,8 +83,15 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
 
                 # Copy each variable listed in `variable_names`
                 for var_name in variable_names:
-                    # Copy data from input file for the current time step
-                    ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][:]
+                    if var_name == 'RAIN':
+                        # Calculate rainfall incrementally based on RAINC, RAINSH, and RAINNC
+                        rain_total = src_file.variables['RAINC'][0,:,:] + src_file.variables['RAINSH'][0,:,:] + src_file.variables['RAINNC'][0,:,:]
+                        ncfile.variables[var_name][time_index, :, :] = rain_total
+                        # result[var] = rain_total - (prev_rain if prev_rain is not None else rain_total)
+                        # prev_rain = rain_total  # Update prev_rain for the next hour in the current cycle 
+                    else:
+                        # Copy data from input file for the current time step
+                        ncfile.variables[var_name][time_index, :, :] = src_file.variables[var_name][0,:,:]
         else:
             logging.info(f"File missing: {filepath}. Filling with NaN for this time frame.")
             # Fill each variable with NaN for the current time step if the file is missing
@@ -99,16 +107,18 @@ while True:  # This can run indefinitely; remove break to continue beyond one cy
 
         # logging.info('netCDF sync')
         ncfile.sync()
+ 
+        if current_time > time_end_time:
+             logging.info(f'End time {time_end_time} reached.')
+             ending = True
+             break
 
-    # Sync to ensure data is written for the current cycle
-    # logging.info('netCDF sync')
-    ncfile.sync()
+    if ending:
+        break
 
     # Move to the next cycle start
     cycle_start_time += timedelta(hours=24 * 7)  # Shift to the next cycle
     cycle_index += 1
-    if cycle_start_time > time_end_time:
-        break
 
 # Close the NetCDF file
 ncfile.close()
