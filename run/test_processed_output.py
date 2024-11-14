@@ -38,16 +38,38 @@ print('Start time is',start_time)
 
 print('testing that row times proceed by hour')
 nbl = 0
+start = None
+
+def itime_fun(i):
+    return start_time + timedelta(hours=i)
+
 for i in range(ntimes):
     time_str = d['times'][i]
     # print('row',i,'time string',time_str)
-    if not time_str.isspace():
+    itime = itime_fun(i)
+
+    if time_str.isspace():
+        if start is None:
+            start = i
+        # print('row',i,'time',itime,'missing, start',start,itime_fun(start))
+
+    else:
         # string not blank 
-        nbl = nbl + 1 
+        if start is not None:
+            print(f"Missing rows from {start} {itime_fun(start)} to {i} {itime_fun(i-1)}")  # Print the range of the stretch
+            start = None  # Reset the start for the next stretch
+
+        nbl = nbl + 1 # count non-blank rows
+
+        # test the time string 
         time = str_to_time(time_str)
-        itime = start_time + timedelta(hours=i)
         if time != itime:
             print('row',i,'time is',time,'should be',itime)
             sys.exit(1)
+
+# Handle the case where the last element ends in a stretch
+if start is not None:
+    print(f"Missing rows from {start} {itime_fun(start)} to {ntimes} {itime_fun(ntimes-1)}")  # Print the range of the stretch
+          
 print(nbl,'nonempty rows with data out of',ntimes,'rows')
 
