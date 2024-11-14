@@ -1,0 +1,116 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Modeling the Probability of a Binary Outcome using Neural Networks with Cross-Entropy Loss}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{1. Introduction to Binary Classification with Neural Networks}
+
+Modeling the probability of a binary outcome, such as "yes/no" or "event/no event," is a fundamental problem in statistical modeling and machine learning. When we approach this problem using neural networks, we typically aim to predict the probability of an event occurring based on one or more input features. Neural networks are powerful tools for capturing complex, non-linear relationships between input features and the probability of an outcome.
+
+For background, see Chapter 4 of Hastie, Tibshirani, and Friedman's *The Elements of Statistical Learning* (2009) for an introduction to neural networks and the mathematical principles behind them \cite{hastie2009elements}.
+
+\section*{2. Neural Network Structure for Binary Classification}
+
+A neural network for binary classification consists of layers of interconnected neurons:
+\begin{itemize}
+    \item **Input Layer**: Takes in the predictor variables (features) of each observation.
+    \item **Hidden Layers**: These intermediate layers allow the network to learn complex relationships by applying non-linear transformations.
+    \item **Output Layer**: For binary classification, the output layer typically has one neuron with a sigmoid activation function, which outputs a probability between 0 and 1, representing the likelihood of the outcome.
+\end{itemize}
+
+Each neuron in a layer computes a weighted sum of inputs, adds a bias term, and applies an activation function. This transformation allows the network to learn non-linear mappings between input features and the probability of an event.
+
+For further details, see Section 11.3 of *An Introduction to Statistical Learning with Applications in R* by James et al. (2013), which offers a concise and accessible introduction to neural networks \cite{james2013introduction}.
+
+\section*{3. Mathematical Formulation}
+
+Let \( X = (X_1, X_2, \dots, X_k) \) be the vector of predictor variables for a single observation, and let \( y \in \{0, 1\} \) be the binary outcome we want to predict. The neural network computes the predicted probability \( \hat{P}(y=1 | X) \) as follows:
+
+1. **Linear Transformation**: For each layer \( l \), the input to the layer is linearly transformed. For a neuron \( j \) in layer \( l \), we have:
+   \[
+   z_j^{(l)} = w_j^{(l)} \cdot h^{(l-1)} + b_j^{(l)}
+   \]
+   where \( w_j^{(l)} \) is the weight vector for neuron \( j \) in layer \( l \), \( h^{(l-1)} \) is the output from the previous layer, and \( b_j^{(l)} \) is the bias term.
+
+2. **Activation Function**: The linear transformation is followed by a non-linear activation function. For hidden layers, common choices include the ReLU (Rectified Linear Unit) function:
+   \[
+   h_j^{(l)} = \max(0, z_j^{(l)})
+   \]
+   For the output layer in binary classification, we use the sigmoid activation function, which ensures the output is a probability:
+   \[
+   \hat{P}(y=1 | X) = \frac{1}{1 + e^{-z}}
+   \]
+   where \( z \) is the output of the last layer before the sigmoid is applied.
+
+\section*{4. Cross-Entropy Loss Function}
+
+To train the neural network, we need a loss function that measures the discrepancy between the predicted probabilities \( \hat{P}(y=1 | X) \) and the actual binary outcomes \( y \). For binary classification, the **cross-entropy loss** function is commonly used. This loss function is defined as follows:
+
+\[
+\text{Cross-Entropy Loss} = -\frac{1}{n} \sum_{i=1}^{n} \left[ y_i \log(\hat{P}(y=1 | X_i)) + (1 - y_i) \log(1 - \hat{P}(y=1 | X_i)) \right]
+\]
+
+where:
+\begin{itemize}
+    \item \( n \) is the number of observations,
+    \item \( y_i \) is the actual binary outcome for the \( i \)-th observation,
+    \item \( \hat{P}(y=1 | X_i) \) is the predicted probability of \( y = 1 \) for the \( i \)-th observation.
+\end{itemize}
+
+This loss function penalizes the model more heavily when it assigns low probabilities to the true class. Minimizing cross-entropy encourages the network to assign high probabilities to the correct classes.
+
+For further explanation of cross-entropy loss, see *Deep Learning* by Goodfellow, Bengio, and Courville (2016), Section 5.5 \cite{goodfellow2016deep}.
+
+\section*{5. Training the Neural Network}
+
+Training a neural network involves finding the parameters (weights and biases) that minimize the cross-entropy loss. This is typically done using **gradient descent** or one of its variants (e.g., stochastic gradient descent). The algorithm proceeds as follows:
+
+1. **Forward Pass**: Compute the predicted probabilities \( \hat{P}(y=1 | X) \) for each observation.
+2. **Loss Calculation**: Calculate the cross-entropy loss based on the predicted probabilities and the true labels.
+3. **Backward Pass**: Use backpropagation to compute the gradients of the loss with respect to each parameter.
+4. **Parameter Update**: Update each parameter using the gradients. For gradient descent, a simple update rule is:
+   \[
+   \theta = \theta - \alpha \frac{\partial \text{Loss}}{\partial \theta}
+   \]
+   where \( \alpha \) is the learning rate, and \( \theta \) represents the network parameters.
+
+This process iterates until convergence, meaning that the loss function stabilizes at a (local) minimum. Chapter 6 of *Neural Networks and Deep Learning* by Nielsen (2015) provides an accessible overview of gradient descent and backpropagation for training neural networks \cite{nielsen2015neural}.
+
+\section*{6. Summary}
+
+In summary, neural networks with a cross-entropy loss function offer a flexible approach to modeling probabilities for binary outcomes. The network architecture allows for complex, non-linear relationships between the predictors and the outcome, while the cross-entropy loss provides a mathematically principled way to train the network on binary classification tasks. This approach is powerful for applications ranging from image classification to predicting binary events in time series and beyond.
+
+\begin{thebibliography}{9}
+
+\bibitem{hastie2009elements}
+T. Hastie, R. Tibshirani, and J. Friedman,
+\textit{The Elements of Statistical Learning: Data Mining, Inference, and Prediction}.
+Springer, 2009, Ch. 4.
+
+\bibitem{james2013introduction}
+G. James, D. Witten, T. Hastie, and R. Tibshirani,
+\textit{An Introduction to Statistical Learning with Applications in R}.
+Springer, 2013, Sec. 11.3.
+
+\bibitem{goodfellow2016deep}
+I. Goodfellow, Y. Bengio, and A. Courville,
+\textit{Deep Learning}.
+MIT Press, 2016, Sec. 5.5.
+
+\bibitem{nielsen2015neural}
+M. Nielsen,
+\textit{Neural Networks and Deep Learning}.
+Determination Press, 2015, Ch. 6.
+
+\end{thebibliography}
+
+\end{document}
+

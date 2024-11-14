@@ -1,0 +1,123 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Logistic Regression – Modeling Probabilities for Binary Outcomes}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{1. Introduction to Logistic Regression}
+
+Logistic regression is a statistical method for modeling the probability of a binary outcome (such as "yes/no" or "event/no event") based on one or more predictor variables. Unlike linear regression, which is designed to predict a continuous outcome, logistic regression is tailored to estimate probabilities—bounded between 0 and 1.
+
+The method is widely used in fields like medicine, economics, and social sciences, where the objective is to understand or predict the likelihood of a particular event.
+
+\section*{2. Problem Setup and Goals}
+
+Given:
+\begin{itemize}
+    \item A set of predictor variables \( X = (X_1, X_2, \dots, X_k) \),
+    \item A binary response variable \( Y \) with possible outcomes \( Y = 1 \) (event occurs) or \( Y = 0 \) (event does not occur).
+\end{itemize}
+
+Goal:
+To model the probability \( P(Y = 1 | X) \) as a function of the predictors, which we will denote by \( P(x) \):
+\[
+P(x) = P(Y = 1 | X) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 X_1 + \beta_2 X_2 + \dots + \beta_k X_k)}}
+\]
+This function allows us to interpret the relationship between predictors and the likelihood of the outcome.
+
+\section*{3. Logistic Function and Log-Odds}
+
+The core of logistic regression is the \textit{logistic function}, also known as the sigmoid function, which maps real-valued inputs to probabilities between 0 and 1:
+\[
+\text{Logistic function: } f(z) = \frac{1}{1 + e^{-z}}
+\]
+In our case, \( z = \beta_0 + \beta_1 X_1 + \dots + \beta_k X_k \), representing a linear combination of the predictors.
+
+The logistic regression model is often expressed in terms of \textit{log-odds}:
+\[
+\log \left( \frac{P(x)}{1 - P(x)} \right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \dots + \beta_k X_k
+\]
+Here, \( \frac{P(x)}{1 - P(x)} \) represents the odds of the event occurring. The log-odds formulation implies a linear relationship between predictors and the log-odds, making it interpretable and computationally convenient.
+
+\section*{4. Interpreting the Coefficients \( \beta_i \)}
+
+In logistic regression:
+\begin{itemize}
+    \item Each coefficient \( \beta_i \) represents the effect of a one-unit change in \( X_i \) on the log-odds of the outcome, assuming other predictors are held constant.
+    \item For example, \( \beta_1 \) tells us how much the log-odds of the outcome will increase or decrease with a one-unit increase in \( X_1 \).
+    \item Exponentiating \( \beta_i \), \( e^{\beta_i} \), gives the multiplicative change in the odds associated with a one-unit change in \( X_i \).
+\end{itemize}
+
+\section*{5. Model Fitting via Maximum Likelihood Estimation (MLE)}
+
+To fit the model, we use \textit{maximum likelihood estimation} (MLE), seeking the parameters \( \beta = (\beta_0, \beta_1, \dots, \beta_k) \) that maximize the probability of observing the data.
+
+\textbf{Likelihood Function}: Given \( n \) independent observations \( (X_i, Y_i) \), the likelihood \( L(\beta) \) is:
+\[
+L(\beta) = \prod_{i=1}^n P(Y_i | X_i; \beta) = \prod_{i=1}^n P(x_i)^{Y_i} (1 - P(x_i))^{1 - Y_i}
+\]
+
+\textbf{Log-Likelihood}: We typically maximize the log of the likelihood function (log-likelihood), as it is more computationally tractable:
+\[
+\ell(\beta) = \sum_{i=1}^n \left[ Y_i \log(P(x_i)) + (1 - Y_i) \log(1 - P(x_i)) \right]
+\]
+
+\textbf{Optimization}: This maximization is done using iterative optimization algorithms, typically \textit{Newton-Raphson} or \textit{gradient ascent}, as there is no closed-form solution.
+
+\section*{6. The Logistic Regression Algorithm}
+
+\begin{enumerate}
+    \item \textbf{Initialize} the parameter vector \( \beta = (\beta_0, \beta_1, \dots, \beta_k) \) with initial values, often zeros.
+    
+    \item \textbf{Iterative Optimization}:
+    \begin{itemize}
+        \item Compute the \textit{predicted probabilities} for each observation:
+        \[
+        \hat{P}(x_i) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 X_{i1} + \dots + \beta_k X_{ik})}}
+        \]
+        \item Calculate the \textit{gradient} of the log-likelihood with respect to \( \beta \) to adjust the parameters:
+        \[
+        \nabla \ell(\beta) = \sum_{i=1}^n \left( Y_i - \hat{P}(x_i) \right) X_i
+        \]
+        \item Update \( \beta \) by moving in the direction of the gradient. For example, using gradient ascent:
+        \[
+        \beta^{\text{new}} = \beta^{\text{old}} + \alpha \nabla \ell(\beta)
+        \]
+        where \( \alpha \) is a learning rate or step size.
+    \end{itemize}
+    
+    \item \textbf{Convergence Check}: Repeat the optimization steps until the parameter estimates converge, typically when changes in \( \beta \) or the log-likelihood are very small.
+
+    \item \textbf{Interpret Results}: Once converged, the coefficients \( \beta_i \) are the final estimates, and we can interpret their effects on the log-odds or compute probabilities for new data points.
+\end{enumerate}
+
+\section*{7. Evaluating Model Performance}
+
+Logistic regression performance can be evaluated using several metrics:
+\begin{itemize}
+    \item \textbf{Accuracy} and \textbf{confusion matrix} to assess classification performance.
+    \item \textbf{AUC-ROC (Area Under Curve - Receiver Operating Characteristic)} to measure the model’s discrimination ability.
+    \item \textbf{Cross-Validation} to estimate generalization performance.
+\end{itemize}
+
+\section*{8. Practical Considerations and Assumptions}
+
+\begin{itemize}
+    \item \textbf{Linearity in Log-Odds}: Assumes a linear relationship between predictors and log-odds. Interaction terms or transformations can be added if this assumption doesn’t hold.
+    \item \textbf{Independence of Errors}: Observations are assumed to be independent of each other.
+    \item \textbf{No Perfect Multicollinearity}: Predictors should not be perfectly correlated.
+\end{itemize}
+
+\section*{9. Summary and Applications}
+
+Logistic regression is powerful and interpretable, making it ideal for problems where the objective is to estimate probabilities, such as predicting disease presence, customer churn, or wildfire susceptibility. Despite its simplicity, logistic regression remains highly effective when relationships are roughly linear on the log-odds scale, and it serves as a foundational tool in statistical and machine learning modeling.
+
+\end{document}
+
