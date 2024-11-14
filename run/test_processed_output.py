@@ -3,7 +3,7 @@ import sys
 print('\nTest reader for output_file produced by process_sims.py\n')
 
 if len(sys.argv) < 2:
-    print('Usage:\nconda activate wrfx\m python test_processed_output.py processed_output.nc')
+    print('Usage:\nconda activate wrfx python test_processed_output.py processed_output.nc')
     sys.exit(1)
 
 import os
