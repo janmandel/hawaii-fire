@@ -17,7 +17,7 @@ cycle_duration_hours = 24 * 8  # Total hours each cycle runs
 unique_data_duration_hours = 24 * 7  # Hours of unique data in each cycle
 spinup_hours = 24  # Hours of spinup data to ignore
 output_file = "processed_output.nc"
-variable_names = ['T2', 'Q2', 'U10', 'V10', 'RAIN',]  # variables to copy
+variable_names = ['T2', 'Q2', 'U10', 'V10', 'RAIN', 'SWDOWN', 'SWUPT']  # variables to copy
 
 # Create and configure the output NetCDF file
 ncfile = Dataset(output_file, 'w', format='NETCDF4')
