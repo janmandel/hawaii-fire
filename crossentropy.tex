@@ -73,7 +73,9 @@ This function measures the average "distance" between the true distribution of l
 
 Cross-entropy loss has several important properties that make it ideal for training neural networks:
 \begin{itemize}
-    \item **Sensitivity to Probability Estimates**: The loss heavily penalizes confident predictions that are wrong. For instance, if the model predicts a very low probability for the true class (close to 0), the loss will be high.
+    \item {\em **Sensitivity to Probability Estimates**: The loss heavily penalizes confident predictions that are wrong. For instance, if the model predicts a very low probability for the true class (close to 0), the loss will be high.}. 
+To see this, for example, if $\hat{P}(y=1)\to 0 $ but $y_i=1$,
+the contribution to the loss is $ -\frac{1}{n} y_i \log(\hat{P}(y=1 | X_i) \to \infty$. 
     \item **Encouragement of High Probabilities for True Class**: Minimizing the cross-entropy loss naturally drives the model to assign higher probabilities to the correct class.
     \item **Connection to Likelihood Maximization**: Cross-entropy loss is equivalent to the negative log-likelihood in a probabilistic framework. Thus, minimizing cross-entropy is akin to maximizing the likelihood of the observed data under the model.
 \end{itemize}This loss function penalizes the model more heavily when it assigns low probabilities to the true class. Minimizing cross-entropy encourages the network to assign high probabilities to the correct classes.
