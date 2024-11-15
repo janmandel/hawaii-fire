@@ -125,5 +125,76 @@ Determination Press, 2015, Ch. 6.
 
 \end{thebibliography}
 
+\appendix
+
+\section{Proof: Cross-Entropy Loss is Equivalent to Negative Log-Likelihood}
+
+\subsection*{1. Binary Classification Setup}
+
+Let:
+\begin{itemize}
+    \item \( y \in \{0, 1\} \): the true binary label for a data point,
+    \item \( \hat{P}(y=1|X) \): the predicted probability that \( y=1 \), given the input features \( X \),
+    \item \( \hat{P}(y=0|X) = 1 - \hat{P}(y=1|X) \): the predicted probability that \( y=0 \).
+\end{itemize}
+
+The likelihood of observing the true label \( y \), given the prediction \( \hat{P} \), is:
+\[
+P(y | X) = 
+\begin{cases} 
+\hat{P}(y=1|X), & \text{if } y = 1, \\
+1 - \hat{P}(y=1|X), & \text{if } y = 0.
+\end{cases}
+\]
+
+This can be expressed compactly using the binary indicator \( y \) as:
+\[
+P(y | X) = [\hat{P}(y=1|X)]^y \cdot [1 - \hat{P}(y=1|X)]^{1-y}.
+\]
+
+\subsection*{2. Negative Log-Likelihood}
+
+The log-likelihood for a single data point is:
+\[
+\log P(y | X) = y \log(\hat{P}(y=1|X)) + (1-y) \log(1 - \hat{P}(y=1|X)).
+\]
+
+The negative log-likelihood (NLL), which is minimized during training, is:
+\[
+\text{NLL} = -\log P(y | X).
+\]
+
+Substituting the expression for \( \log P(y | X) \), we have:
+\[
+\text{NLL} = -\left[ y \log(\hat{P}(y=1|X)) + (1-y) \log(1 - \hat{P}(y=1|X)) \right].
+\]
+
+\subsection*{3. Cross-Entropy Loss}
+
+The cross-entropy loss for a single data point is defined as:
+\[
+\text{Cross-Entropy Loss} = - \left[ y \log(\hat{P}(y=1|X)) + (1-y) \log(1 - \hat{P}(y=1|X)) \right].
+\]
+
+\section*{4. Equivalence of Cross-Entropy Loss and NLL}
+
+Comparing the expressions for negative log-likelihood and cross-entropy loss:
+\[
+\text{NLL} = \text{Cross-Entropy Loss}.
+\]
+
+Thus, minimizing the cross-entropy loss is equivalent to minimizing the negative log-likelihood of the data under the model.
+
+\subsection*{5. Intuition}
+
+The equivalence arises because both cross-entropy loss and negative log-likelihood are derived from the same probabilistic framework:
+\begin{itemize}
+    \item The cross-entropy measures the "distance" between the true label distribution and the predicted probability distribution.
+    \item The negative log-likelihood penalizes the model for assigning low probabilities to the true labels, encouraging it to maximize the likelihood of the observed data.
+\end{itemize}
+
+Both objectives lead to the same optimization process and training dynamics in binary classification.
+
+
 \end{document}
 
