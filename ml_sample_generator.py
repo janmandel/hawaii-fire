@@ -137,7 +137,7 @@ dates_fire =  dates_fire_actual.floor("h")
 ### above is the new setup and below is the old implementation
 # Build the interpolator
 interp = Coord_to_index(degree = 2)
-interp.build(lon_array, lat_array)
+interp.build(lon_grid, lat_grid)
 
 # Define the function to interpolate continuous features for each coordinate
 def interpolate_data(lon, lat, date_fire):
