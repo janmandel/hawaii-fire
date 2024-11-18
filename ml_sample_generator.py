@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 # The file paths
 ## Define the base directory (main)
-main = osp.join('home', 'spearsty', 'p', 'data')
+main = osp.join('/', 'home', 'spearsty', 'p', 'data')
 feat = osp.join(main, 'feat')
 targ = osp.join(main, 'targ', 'Hawaii-all_2024-10-29_16:36:26')
 
@@ -39,7 +39,7 @@ aspect_path = osp.join(feat, 'landfire', 'reprojected', 'aspect_reproj.tif')
 
 ## vegetation paths
 fuelmod_path = osp.join(feat, 'landfire', 'reprojected', 'fuelmod_reproj.tif')
-fuelvat_path = osp.join(feat, 'landfire', 'afbfm', ' LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf')
+fuelvat_path = osp.join(feat, 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf')
 
 # meteorology paths (processed wrf outputs)
 process_path = osp.join(feat, 'weather', 'processed_output.nc')
@@ -161,6 +161,13 @@ for idx, (lon, lat, date_fire) in enumerate(zip(lon_array, lat_array, dates_fire
             'wind': np.nan
         })
 
+# Convert the list of dictionaries to a DataFrame for easy handling
+df = pd.DataFrame(data_interp)
+
+# Display a summary of the DataFrame and pickle it
+print(df.head())
+df.to_pickle('processed_data.pkl')
+     
 # End timing and resource monitoring
 end_time = time.time()
 end_cpu = process.cpu_percent(interval=None)
