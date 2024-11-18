@@ -3,8 +3,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10  # Specify the Python version you need
-  - numpy=2.1.2
+  - python=3.9  # Downgraded from 3.10.15 to 3.9
+  - numpy=1.24.4  # Downgraded from 2.1.2 to 1.24.4 to satisfy netCDF4
   - pandas=2.2.3
   - matplotlib=3.9.2
   - netCDF4=1.6.4
@@ -14,6 +14,10 @@ dependencies:
   - pygrib=2.1.6
   - joblib=1.4.2
   - psutil=6.0.0
+  - matplotlib-inline=0.1.7
   - pip=24.2  # Ensure pip is available for any pip-only packages
-  # Optional: Add any additional dependencies below
-  # For example, if you need specific versions or additional packages
+  - pip:
+    # Add any pip-only packages here if needed
+    # Example:
+    # - some-pip-package==1.2.3
+  # Include other dependencies as needed, ensuring compatibility
