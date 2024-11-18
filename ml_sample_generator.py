@@ -47,6 +47,23 @@ process_path = osp.join(feat, 'weather', 'processed_output.nc')
 ## fire detection (red pixel detection....)
 fire_path = osp.join(targ, 'ml_data')
 
+# Check if files exist
+file_paths = {
+    "slope_path": slope_path,
+    "elevation_path": elevation_path,
+    "aspect_path": aspect_path,
+    "fuelmod_path": fuelmod_path,
+    "fuelvat_path": fuelvat_path,
+    "process_path": process_path,
+    "fire_path": fire_path
+}
+
+for name, path in file_paths.items():
+    if not osp.exists(path):
+        print(f"ERROR: File {name} does not exist at {path}")
+    else:
+        print(f"File {name} loaded successfully: {path}")
+
 # Extraction of the data from the files
 procdata = nc.Dataset(process_path)
 
@@ -69,17 +86,33 @@ vapor = procdata.variables['Q2'][:, :, :] # 'Q2', the water-vapor mixing ratio 2
 wind_u = procdata.variables['U10'][:, :, :]
 wind_v = procdata.variables['V10'][:, :, :]
 
+print("Checking meteorology variables...")
+required_vars = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'XLONG', 'XLAT', 'times']
+
+for var in required_vars:
+    if var not in procdata.variables:
+        print(f"ERROR: Variable '{var}' not found in processed NetCDF file")
+    else:
+        print(f"Variable '{var}' loaded successfully")
+
+
 ## topography
+print("Loading topography data...")
 elevation_dataset = rasterio.open(elevation_path)
 elevation = elevation_dataset.read(1)
+print(f"Elevation data loaded. Shape: {elevation_dataset.read(1).shape}")
 aspect_dataset = rasterio.open(aspect_path)
 aspect = aspect_dataset.read(1)
+print(f"Aspect data loaded. Shape: {aspect_dataset.read(1).shape}")
 slope_dataset = rasterio.open(slope_path)
 slope = slope_dataset.read(1)
+print(f"Aspect data loaded. Shape: {aspect_dataset.read(1).shape}")
 
 ## vegetation
+print("Loading vegetation data...")
 fuelmod_dataset = rasterio.open(fuelmod_path)
 fuelmod = fuelmod_dataset.read(1)
+print(f"Fuel model data loaded. Shape: {fuelmod_dataset.read(1).shape}")
 
 ### Read the VAT file
 fuel_vat = DBF(fuelvat_path)
@@ -150,6 +183,7 @@ for idx, (lon, lat, date_fire) in enumerate(zip(lon_array, lat_array, dates_fire
     if result is not None:
         data_interp.append(result)
     else:
+        print(f"Interpolation failed for lon={lon}, lat={lat}, date={date_fire}")
         no_interpolation_indices.append(idx)
         data_interp.append({
             'date': date_fire,
