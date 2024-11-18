@@ -139,6 +139,27 @@ dates_fire =  dates_fire_actual.floor("h")
 interp = Coord_to_index(degree = 2)
 interp.build(lon_grid, lat_grid)
 
+
+def calc_rhum(temp_K, mixing_ratio):
+    try:
+        # Constants
+        epsilon = 0.622
+        pressure_pa = 1000 * 100  # fixed until we can get the data
+
+        # Saturation vapor pressure
+        es_hpa = 6.112 * np.exp((17.67 * (temp_K - 273.15)) / ((temp_K - 273.15) + 243.5))
+        es_pa = es_hpa * 100
+
+        # Actual vapor pressure
+        e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
+
+        # Relative humidity
+        rh = (e_pa / es_pa) * 100
+        return rh
+    except Exception as e:
+        print(f"Error in calc_rhum: temp_K={temp_K}, mixing_ratio={mixing_ratio}, error={e}")
+        return np.nan
+
 # Define the function to interpolate continuous features for each coordinate
 def interpolate_data(lon, lat, date_fire):
     try:
@@ -159,7 +180,7 @@ def interpolate_data(lon, lat, date_fire):
             'lat': lat,
             'temp': temp[time_index, i, j],
             'rain': rain[time_index, i, j],
-            'vapor': vapor[time_index, i, j],
+            'rhum': calc_rhum(temp[time_index, i, j], vapor[time_index, i, j]),
             'wind': np.sqrt(wind_u[time_index, i, j]**2 + wind_v[time_index, i, j]**2)
         }
         return data_dict
@@ -191,7 +212,7 @@ for idx, (lon, lat, date_fire) in enumerate(zip(lon_array, lat_array, dates_fire
             'lat': lat,
             'temp': np.nan,
             'rain': np.nan,
-            'vapor': np.nan,
+            'rhum': np.nan,
             'wind': np.nan
         })
 
