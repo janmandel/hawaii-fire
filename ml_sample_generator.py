@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import rasterio
+from rasterio.transform import rowcol
 from rasterio.plot import show
 from rasterio.mask import mask
 from rasterio.warp import reproject, Resampling
@@ -26,13 +27,14 @@ import time
 import psutil
 from datetime import datetime, timedelta
 
+# WRITE ONE FUNCTION TO JOIN THE PATHS AND TEST FOR THE EXISTENCE OF THE RESULTING FILE PATHS
 # The file paths
 ## Define the base directory (main)
 main = osp.join('/', 'home', 'spearsty', 'p', 'data')
 feat = osp.join(main, 'feat')
 targ = osp.join(main, 'targ', 'Hawaii-all_2024-10-29_16:36:26')
 
-## topography paths
+## topography paths  #### CHANGE THESE TO THE REGULAR TIF FILES AND JUST USE RASTERIO_TRANSFORM rowcol function
 slope_path = osp.join(feat, 'landfire', 'reprojected', 'slope_reproj.tif')
 elevation_path = osp.join(feat, 'landfire', 'reprojected', 'elevation_reproj.tif')
 aspect_path = osp.join(feat, 'landfire', 'reprojected', 'aspect_reproj.tif')
@@ -64,6 +66,7 @@ for name, path in file_paths.items():
     else:
         print(f"File {name} loaded successfully: {path}")
 
+
 # Extraction of the data from the files
 procdata = nc.Dataset(process_path)
 
@@ -77,7 +80,15 @@ date_proc_strings = [t.strip() for t in date_proc]
 
 # Remove empty strings from date_proc_strings
 date_proc_strings = [t for t in date_proc_strings if t.strip() != '']
-date_proc_times = pd.to_datetime(date_proc_strings, format='%Y-%m-%d_%H:%M:%S', errors ='coerce')
+date_proc_times = pd.to_datetime(date_proc_strings, format='%Y-%m-%d_%H:%M:%S', errors ='coerce') # ADD WHEN THE STRING IS EMPTY ?
+# Expected: For each satelite data time  compute the number of hours since the beginning of the processed data ['times'][0] .
+# Change the number of hours into an integer, k,  and then check that procdata.variables['times'][k] is the same as satellite rounded to the nearest hour.
+# Then you can acess the variables for procdata.variables['RAIN'][k, :, :]
+# Create an array of integers, [k,k] , for all the satelite data and in the end do the interpolation for the whole vector.
+# Access as procdata.variables['RAIN'][k, i, j] where i, j are from interp.evaluate(lon, lat), rounded.
+# For variables in GeoTiff also process the whole array [k, k]
+# ? reprojection of all the lats and lons will not be very fast...
+#
 
 ## meteorology
 rain = procdata.variables['RAIN'][:, :, :] # 'RAIN', from convective (deep) thunderstorms
@@ -85,9 +96,9 @@ temp = procdata.variables['T2'][:, :, :] #'T2', the measured temp 2m above the s
 vapor = procdata.variables['Q2'][:, :, :] # 'Q2', the water-vapor mixing ratio 2m above the surface
 wind_u = procdata.variables['U10'][:, :, :]
 wind_v = procdata.variables['V10'][:, :, :]
-
+# ADD ALSO SW VARIABLES AS (SWDWN - SWUP) and magnitude (norm) of wind as features (note check for SW as well and pressure when it is added)
 print("Checking meteorology variables...")
-required_vars = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'XLONG', 'XLAT', 'times']
+required_vars = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'XLONG', 'XLAT', 'times'] # REQUIRE ALSO SWDN, SWUP, PSFC
 
 for var in required_vars:
     if var not in procdata.variables:
@@ -128,11 +139,11 @@ fuelmod = np.vectorize(fuel_value_to_class.get)(fuelmod)
 
 ## fire detection (red pixel detection....)
 X, y, c, basetime = load(fire_path) # X is a matrix of lon, lat and time (since base_time), y is fire dectections, c is confidence
-lon_array = X[:, 0]
+lon_array = X[:, 0] # THESE ARE IN WGS84 (ALL SATELLITE DATA IS..)
 lat_array = X[:, 1]
 time_in_days = X[:, 2]
 dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
-dates_fire =  dates_fire_actual.floor("h")
+dates_fire =  dates_fire_actual.floor("h") # THIS A DATETIME ARRAY
 
 ### above is the new setup and below is the old implementation
 # Build the interpolator
@@ -140,7 +151,7 @@ interp = Coord_to_index(degree = 2)
 interp.build(lon_grid, lat_grid)
 
 
-def calc_rhum(temp_K, mixing_ratio):
+def calc_rhum(temp_K, mixing_ratio): # ADD SURFACE PRESSURE AS AN ARGUMENT and MAKE IT WORK FOR ARRAY ARGUMENTS
     try:
         # Constants
         epsilon = 0.622
@@ -202,9 +213,9 @@ no_interpolation_indices = []
 for idx, (lon, lat, date_fire) in enumerate(zip(lon_array, lat_array, dates_fire)):
     result = interpolate_data(lon, lat, date_fire)
     if result is not None:
-        data_interp.append(result)
+        data_interp.append(result) # IF USING NETCDF THEN JUST WRITE IT INTO THE NEXT ROW (
     else:
-        print(f"Interpolation failed for lon={lon}, lat={lat}, date={date_fire}")
+        # print(f"Interpolation failed for lon={lon}, lat={lat}, date={date_fire}")
         no_interpolation_indices.append(idx)
         data_interp.append({
             'date': date_fire,
@@ -221,7 +232,7 @@ df = pd.DataFrame(data_interp)
 
 # Display a summary of the DataFrame and pickle it
 print(df.head())
-df.to_pickle('processed_data.pkl')
+df.to_pickle('processed_data.pkl') # IF THIS IS TO SLOW WE MAY HAVE TO IMPLENT NETCDF instead
      
 # End timing and resource monitoring
 end_time = time.time()
