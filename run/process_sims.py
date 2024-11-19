@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %
 start_timestr = "2011-01-01_00:00:00"
 end_timestr = "2024-11-02_00:00:00"
 #end_timestr = "2011-01-11_00:00:00"
-prefix = "wrfxpy/wksp/wfc-run_hawaii-gfsa-3km-2dom-"
+prefix = "wrfxpy/gfsa.wksp/wfc-run_hawaii-gfsa-3km-2dom-"
 suffix = "-192/wrf/wrfout_d02_"
 cycle_duration_hours = 24 * 8  # Total hours each cycle runs
 unique_data_duration_hours = 24 * 7  # Hours of unique data in each cycle
