@@ -83,7 +83,7 @@ def load_fire_detection(file_paths, confidence_threshold):
 
     """
     print("Loading fire detection data...")
-    X, y, c, basetime = load(file_paths)
+    X, y, c, basetime = load(file_paths['fire_path'])
 
     # Debug: Print initial statistics
     print(f"Total data points: {len(X)}")
