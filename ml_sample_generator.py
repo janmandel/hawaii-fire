@@ -68,9 +68,9 @@ def load_meteorology(file_paths):
         "vapor": data.variables['Q2'][:, :, :],
         "wind_u": data.variables['U10'][:, :, :],
         "wind_v": data.variables['V10'][:, :, :],
-        "swdwn" = procdata.variables['SWDOWN'][:, :, :]
-        "swup" = procdata.variables['SWUPT'][:, :, :]
-        "press" = procdata.variables['PSFC'][:, :, :]
+        "swdwn": procdata.variables['SWDOWN'][:, :, :],
+        "swup": procdata.variables['SWUPT'][:, :, :],
+        "press": procdata.variables['PSFC'][:, :, :],
         "lon_grid": data.variables['XLONG'][:, :],
         "lat_grid": data.variables['XLAT'][:, :],
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
@@ -174,9 +174,8 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
             'rain': variables['rain'][time_idx, i, j],
             'rhum': calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],variables['press'][time_idx, i, j]),
             'wind': np.sqrt(
-                variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2,
-            'sw' : variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
-            )
+                variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2),
+            'sw': variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
         }
         data_interp.append(data)
 
