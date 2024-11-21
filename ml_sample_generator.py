@@ -76,14 +76,14 @@ def load_meteorology(file_paths):
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
     }
 
-def load_fire_detection(file_path, confidence_threshold):
+def load_fire_detection(file_paths, confidence_threshold):
     """
     Load and process fire detection data.
     Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
 
     """
     print("Loading fire detection data...")
-    X, y, c, basetime = load(file_path)
+    X, y, c, basetime = load(file_paths)
 
     # Debug: Print initial statistics
     print(f"Total data points: {len(X)}")
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     meteorology = load_meteorology(file_paths)
 
     # Load fire detection data
-    fire_detection_data = load_fire_detection(fire_path, confidence_threshold=70)
+    fire_detection_data = load_fire_detection(file_paths, confidence_threshold=70)
     lon_array = fire_detection_data['lon']
     lat_array = fire_detection_data['lat']
     dates_fire = fire_detection_data['dates_fire']
