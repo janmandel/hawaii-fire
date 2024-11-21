@@ -68,9 +68,9 @@ def load_meteorology(file_paths):
         "vapor": data.variables['Q2'][:, :, :],
         "wind_u": data.variables['U10'][:, :, :],
         "wind_v": data.variables['V10'][:, :, :],
-        "swdwn": procdata.variables['SWDOWN'][:, :, :],
-        "swup": procdata.variables['SWUPT'][:, :, :],
-        "press": procdata.variables['PSFC'][:, :, :],
+        "swdwn": data.variables['SWDOWN'][:, :, :],
+        "swup": data.variables['SWUPT'][:, :, :],
+        "press": data.variables['PSFC'][:, :, :],
         "lon_grid": data.variables['XLONG'][:, :],
         "lat_grid": data.variables['XLAT'][:, :],
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
