@@ -76,45 +76,45 @@ def load_meteorology(file_paths):
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
     }
 
-    def load_fire_detection(file_path, confidence_threshold):
-        """
-        Load and process fire detection data.
-        Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
+def load_fire_detection(file_path, confidence_threshold):
+    """
+    Load and process fire detection data.
+    Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
 
-        """
-        print("Loading fire detection data...")
-        X, y, c, basetime = load(file_path)
+    """
+    print("Loading fire detection data...")
+    X, y, c, basetime = load(file_path)
 
-        # Debug: Print initial statistics
-        print(f"Total data points: {len(X)}")
-        print(f"Number of 'Fire' labels: {np.sum(y == 1)}")
-        print(f"Number of 'Fire' labels with confidence < {confidence_threshold}: {np.sum((y == 1) & (c < confidence_threshold))}")
+    # Debug: Print initial statistics
+    print(f"Total data points: {len(X)}")
+    print(f"Number of 'Fire' labels: {np.sum(y == 1)}")
+    print(f"Number of 'Fire' labels with confidence < {confidence_threshold}: {np.sum((y == 1) & (c < confidence_threshold))}")
 
-        # Filter out points with label 1 and confidence < confidence_threshold
-        valid_indices = ~((y == 1) & (c < confidence_threshold))  # Keep points not failing this condition
-        X_filtered = X[valid_indices]
-        y_filtered = y[valid_indices]
+    # Filter out points with label 1 and confidence < confidence_threshold
+    valid_indices = ~((y == 1) & (c < confidence_threshold))  # Keep points not failing this condition
+    X_filtered = X[valid_indices]
+    y_filtered = y[valid_indices]
 
-        # Debug: Print post-filtering statistics
-        print(f"Number of remaining data points: {len(X_filtered)}")
-        print(f"Number of remaining 'Fire' labels: {np.sum(y_filtered == 1)}")
+    # Debug: Print post-filtering statistics
+    print(f"Number of remaining data points: {len(X_filtered)}")
+    print(f"Number of remaining 'Fire' labels: {np.sum(y_filtered == 1)}")
 
-        # Extract filtered components
-        lon_array = X_filtered[:, 0]
-        lat_array = X_filtered[:, 1]
-        time_in_days = X_filtered[:, 2]
-        dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
-        dates_fire = dates_fire_actual.floor("h")  # Round to nearest hour
+    # Extract filtered components
+    lon_array = X_filtered[:, 0]
+    lat_array = X_filtered[:, 1]
+    time_in_days = X_filtered[:, 2]
+    dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
+    dates_fire = dates_fire_actual.floor("h")  # Round to nearest hour
 
-        print(f"Loaded {len(X)} data points, filtered down to {len(X_filtered)} based on confidence and labels.")
+    print(f"Loaded {len(X)} data points, filtered down to {len(X_filtered)} based on confidence and labels.")
 
-        return {
-            "lon": lon_array,
-            "lat": lat_array,
-            "time_days": time_in_days,
-            "dates_fire": dates_fire,
-            "labels": y_filtered
-        }
+    return {
+        "lon": lon_array,
+        "lat": lat_array,
+        "time_days": time_in_days,
+        "dates_fire": dates_fire,
+        "labels": y_filtered
+    }
 
 def compute_time_indices(satellite_times, processed_times):
     """
