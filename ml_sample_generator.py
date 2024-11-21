@@ -22,10 +22,10 @@ def get_file_paths():
     """
     base_dir = osp.join('/', 'home', 'spearsty', 'p', 'data')
     file_paths = {
-        "slope_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'slope_reproj.tif'),
-        "elevation_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'elevation_reproj.tif'),
-        "aspect_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'aspect_reproj.tif'),
-        "fuelmod_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'fuelmod_reproj.tif'),
+        "slope_path": osp.join(base_dir, 'feat', 'landfire', 'top','LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif'),
+        "elevation_path": osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Elev_220_HI', 'LH20_Elev_220.tif'),
+        "aspect_path": osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Asp_220_HI', 'LH20_Asp_220.tif'),
+        "fuelmod_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif'),
         "fuelvat_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf'),
         "process_path": osp.join(base_dir, 'feat', 'weather', 'processed_output.nc'),
         "fire_path": osp.join(base_dir, 'targ', 'Hawaii-all_2024-10-29_16:36:26', 'ml_data')
@@ -76,6 +76,46 @@ def load_meteorology(file_paths):
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
     }
 
+    def load_fire_detection(file_path, confidence_threshold):
+        """
+        Load and process fire detection data.
+        Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
+
+        """
+        print("Loading fire detection data...")
+        X, y, c, basetime = load(file_path)
+
+        # Debug: Print initial statistics
+        print(f"Total data points: {len(X)}")
+        print(f"Number of 'Fire' labels: {np.sum(y == 1)}")
+        print(f"Number of 'Fire' labels with confidence < {confidence_threshold}: {np.sum((y == 1) & (c < confidence_threshold))}")
+
+        # Filter out points with label 1 and confidence < confidence_threshold
+        valid_indices = ~((y == 1) & (c < confidence_threshold))  # Keep points not failing this condition
+        X_filtered = X[valid_indices]
+        y_filtered = y[valid_indices]
+
+        # Debug: Print post-filtering statistics
+        print(f"Number of remaining data points: {len(X_filtered)}")
+        print(f"Number of remaining 'Fire' labels: {np.sum(y_filtered == 1)}")
+
+        # Extract filtered components
+        lon_array = X_filtered[:, 0]
+        lat_array = X_filtered[:, 1]
+        time_in_days = X_filtered[:, 2]
+        dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
+        dates_fire = dates_fire_actual.floor("h")  # Round to nearest hour
+
+        print(f"Loaded {len(X)} data points, filtered down to {len(X_filtered)} based on confidence and labels.")
+
+        return {
+            "lon": lon_array,
+            "lat": lat_array,
+            "time_days": time_in_days,
+            "dates_fire": dates_fire,
+            "labels": y_filtered
+        }
+
 def compute_time_indices(satellite_times, processed_times):
     """
     Compute the number of hours since the start of processed data for each satellite time.
@@ -93,6 +133,10 @@ def compute_time_indices(satellite_times, processed_times):
                 raise ValueError(f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
         else:
             raise IndexError(f"Index {idx} out of bounds for processed data times.")
+
+        # Debug statement for progress
+        if idx % 1000 == 0:
+            print(f"Processed {idx} out of {len(satellite_times)} records...")
 
     return indices
 
@@ -153,10 +197,11 @@ if __name__ == "__main__":
     meteorology = load_meteorology(file_paths)
 
     # Load fire detection data
-    X, y, c, basetime = load(file_paths['fire_path'])
-    lon_array, lat_array, time_in_days = X[:, 0], X[:, 1], X[:, 2]
-    dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
-    dates_fire = dates_fire_actual.floor("h")
+    fire_detection_data = load_fire_detection(fire_path, confidence_threshold=70)
+    lon_array = fire_detection_data['lon']
+    lat_array = fire_detection_data['lat']
+    dates_fire = fire_detection_data['dates_fire']
+    labels = fire_detection_data['labels']
 
     # Build interpolator
     interp = Coord_to_index(degree=2)
