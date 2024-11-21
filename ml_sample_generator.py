@@ -1,254 +1,174 @@
-# The neccessary packages
+# Necessary Imports
 ## In-house packages
-import lonlat_interp
-from lonlat_interp import test_reproduce_smooth_grid, Coord_to_index, Interpolator
-from saveload import save,load
-## Pacakages from anywhere else
+from lonlat_interp import Coord_to_index
+from saveload import load
+## External packages
 import os
 from os import path as osp
 import netCDF4 as nc
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import rasterio
-from rasterio.transform import rowcol
-from rasterio.plot import show
-from rasterio.mask import mask
-from rasterio.warp import reproject, Resampling
-import geopandas as gpd
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, BoundaryNorm
-import matplotlib.patches as mpatches
 from dbfread import DBF
-import pygrib
-import pickle
-from joblib import Parallel, delayed
-import time
-import psutil
 from datetime import datetime, timedelta
+import psutil
+import time
 
-# WRITE ONE FUNCTION TO JOIN THE PATHS AND TEST FOR THE EXISTENCE OF THE RESULTING FILE PATHS
-# The file paths
-## Define the base directory (main)
-main = osp.join('/', 'home', 'spearsty', 'p', 'data')
-feat = osp.join(main, 'feat')
-targ = osp.join(main, 'targ', 'Hawaii-all_2024-10-29_16:36:26')
+# Functions
+def get_file_paths():
+    """
+    Define and validate file paths.
+    Returns a dictionary of paths.
+    """
+    base_dir = osp.join('/', 'home', 'spearsty', 'p', 'data')
+    file_paths = {
+        "slope_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'slope_reproj.tif'),
+        "elevation_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'elevation_reproj.tif'),
+        "aspect_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'aspect_reproj.tif'),
+        "fuelmod_path": osp.join(base_dir, 'feat', 'landfire', 'reprojected', 'fuelmod_reproj.tif'),
+        "fuelvat_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf'),
+        "process_path": osp.join(base_dir, 'feat', 'weather', 'processed_output.nc'),
+        "fire_path": osp.join(base_dir, 'targ', 'Hawaii-all_2024-10-29_16:36:26', 'ml_data')
+    }
+    for name, path in file_paths.items():
+        if not osp.exists(path):
+            raise FileNotFoundError(f"ERROR: File {name} does not exist at {path}")
+    return file_paths
 
-## topography paths  #### CHANGE THESE TO THE REGULAR TIF FILES AND JUST USE RASTERIO_TRANSFORM rowcol function
-slope_path = osp.join(feat, 'landfire', 'reprojected', 'slope_reproj.tif')
-elevation_path = osp.join(feat, 'landfire', 'reprojected', 'elevation_reproj.tif')
-aspect_path = osp.join(feat, 'landfire', 'reprojected', 'aspect_reproj.tif')
+def load_topography(file_paths):
+    """
+    Load topography data from GeoTIFF files.
+    """
+    print("Loading topography data...")
+    return {
+        "elevation": rasterio.open(file_paths['elevation_path']).read(1),
+        "aspect": rasterio.open(file_paths['aspect_path']).read(1),
+        "slope": rasterio.open(file_paths['slope_path']).read(1)
+    }
 
-## vegetation paths
-fuelmod_path = osp.join(feat, 'landfire', 'reprojected', 'fuelmod_reproj.tif')
-fuelvat_path = osp.join(feat, 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf')
+def load_vegetation(file_paths):
+    """
+    Load vegetation data and map pixel values to vegetation classes.
+    """
+    print("Loading vegetation data...")
+    fuelmod = rasterio.open(file_paths['fuelmod_path']).read(1)
+    vat_df = pd.DataFrame(iter(DBF(file_paths['fuelvat_path']))).sort_values(by='VALUE').reset_index(drop=True)
+    value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
+    return np.vectorize(value_to_class.get)(fuelmod)
 
-# meteorology paths (processed wrf outputs)
-process_path = osp.join(feat, 'weather', 'processed_output.nc')
+def load_meteorology(file_paths):
+    """
+    Load meteorology data from a NetCDF file.
+    """
+    print("Loading meteorology data...")
+    data = nc.Dataset(file_paths['process_path'])
+    return {
+        "rain": data.variables['RAIN'][:, :, :],
+        "temp": data.variables['T2'][:, :, :],
+        "vapor": data.variables['Q2'][:, :, :],
+        "wind_u": data.variables['U10'][:, :, :],
+        "wind_v": data.variables['V10'][:, :, :],
+        "swdwn" = procdata.variables['SWDOWN'][:, :, :]
+        "swup" = procdata.variables['SWUPT'][:, :, :]
+        "press" = procdata.variables['PSFC'][:, :, :]
+        "lon_grid": data.variables['XLONG'][:, :],
+        "lat_grid": data.variables['XLAT'][:, :],
+        "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
+    }
 
-## fire detection (red pixel detection....)
-fire_path = osp.join(targ, 'ml_data')
+def compute_time_indices(satellite_times, processed_times):
+    """
+    Compute the number of hours since the start of processed data for each satellite time.
+    Ensure alignment between satellite and processed data timestamps.
+    """
+    start_time = processed_times[0]
+    hours_since_start = (satellite_times - start_time).total_seconds() // 3600
+    indices = hours_since_start.astype(int)
 
-# Check if files exist
-file_paths = {
-    "slope_path": slope_path,
-    "elevation_path": elevation_path,
-    "aspect_path": aspect_path,
-    "fuelmod_path": fuelmod_path,
-    "fuelvat_path": fuelvat_path,
-    "process_path": process_path,
-    "fire_path": fire_path
-}
+    # Validate indices
+    for idx, sat_time in zip(indices, satellite_times):
+        if 0 <= idx < len(processed_times):
+            processed_time = processed_times[idx]
+            if abs((processed_time - sat_time).total_seconds()) > 3600:
+                raise ValueError(f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
+        else:
+            raise IndexError(f"Index {idx} out of bounds for processed data times.")
 
-for name, path in file_paths.items():
-    if not osp.exists(path):
-        print(f"ERROR: File {name} does not exist at {path}")
-    else:
-        print(f"File {name} loaded successfully: {path}")
+    return indices
 
+def calc_rhum(temp_K, mixing_ratio, pressure_pa):
+    """
+    Calculate relative humidity from temperature and mixing ratio.
+    """
+    epsilon = 0.622
+    es_hpa = 6.112 * np.exp((17.67 * (temp_K - 273.15)) / ((temp_K - 273.15) + 243.5))
+    es_pa = es_hpa * 100
+    e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
+    return (e_pa / es_pa) * 100
 
-# Extraction of the data from the files
-procdata = nc.Dataset(process_path)
+def interpolate_all(satellite_coords, time_indices, interp, variables):
+    """
+    Perform batch interpolation for all satellite coordinates and times.
+    Only valid points are included in the output.
+    """
+    data_interp = []
 
-## spatial
-lon_grid = procdata.variables['XLONG'][:, :]
-lat_grid = procdata.variables['XLAT'][:, :]
+    for idx, ((lon, lat), time_idx) in enumerate(zip(satellite_coords, time_indices)):
+        ia, ja = interp.evaluate(lon, lat)
+        i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
-## temporal
-date_proc = procdata.variables['times'][:]
-date_proc_strings = [t.strip() for t in date_proc]
+        # Skip invalid points
+        if not (0 <= i < variables['temp'].shape[1] and 0 <= j < variables['temp'].shape[2]):
+            continue
 
-# Remove empty strings from date_proc_strings
-date_proc_strings = [t for t in date_proc_strings if t.strip() != '']
-date_proc_times = pd.to_datetime(date_proc_strings, format='%Y-%m-%d_%H:%M:%S', errors ='coerce') # ADD WHEN THE STRING IS EMPTY ?
-# Expected: For each satelite data time  compute the number of hours since the beginning of the processed data ['times'][0] .
-# Change the number of hours into an integer, k,  and then check that procdata.variables['times'][k] is the same as satellite rounded to the nearest hour.
-# Then you can acess the variables for procdata.variables['RAIN'][k, :, :]
-# Create an array of integers, [k,k] , for all the satelite data and in the end do the interpolation for the whole vector.
-# Access as procdata.variables['RAIN'][k, i, j] where i, j are from interp.evaluate(lon, lat), rounded.
-# For variables in GeoTiff also process the whole array [k, k]
-# ? reprojection of all the lats and lons will not be very fast...
-#
-
-## meteorology
-rain = procdata.variables['RAIN'][:, :, :] # 'RAIN', from convective (deep) thunderstorms
-temp = procdata.variables['T2'][:, :, :] #'T2', the measured temp 2m above the surface
-vapor = procdata.variables['Q2'][:, :, :] # 'Q2', the water-vapor mixing ratio 2m above the surface
-wind_u = procdata.variables['U10'][:, :, :]
-wind_v = procdata.variables['V10'][:, :, :]
-# ADD ALSO SW VARIABLES AS (SWDWN - SWUP) and magnitude (norm) of wind as features (note check for SW as well and pressure when it is added)
-print("Checking meteorology variables...")
-required_vars = ['RAIN', 'T2', 'Q2', 'U10', 'V10', 'XLONG', 'XLAT', 'times'] # REQUIRE ALSO SWDN, SWUP, PSFC
-
-for var in required_vars:
-    if var not in procdata.variables:
-        print(f"ERROR: Variable '{var}' not found in processed NetCDF file")
-    else:
-        print(f"Variable '{var}' loaded successfully")
-
-
-## topography
-print("Loading topography data...")
-elevation_dataset = rasterio.open(elevation_path)
-elevation = elevation_dataset.read(1)
-print(f"Elevation data loaded. Shape: {elevation_dataset.read(1).shape}")
-aspect_dataset = rasterio.open(aspect_path)
-aspect = aspect_dataset.read(1)
-print(f"Aspect data loaded. Shape: {aspect_dataset.read(1).shape}")
-slope_dataset = rasterio.open(slope_path)
-slope = slope_dataset.read(1)
-print(f"Aspect data loaded. Shape: {aspect_dataset.read(1).shape}")
-
-## vegetation
-print("Loading vegetation data...")
-fuelmod_dataset = rasterio.open(fuelmod_path)
-fuelmod = fuelmod_dataset.read(1)
-print(f"Fuel model data loaded. Shape: {fuelmod_dataset.read(1).shape}")
-
-### Read the VAT file
-fuel_vat = DBF(fuelvat_path)
-fuel_vat_df = pd.DataFrame(iter(fuel_vat))
-
-### Sort the VAT DataFrame by VALUE
-fuel_vat_df_sorted = fuel_vat_df.sort_values(by='VALUE').reset_index(drop=True)
-# Create a mapping from pixel values to class names
-fuel_value_to_class = dict(zip(fuel_vat_df['VALUE'], fuel_vat_df['FBFM13']))
-
-### Map the Fuel Model data to class names
-fuelmod = np.vectorize(fuel_value_to_class.get)(fuelmod)
-
-## fire detection (red pixel detection....)
-X, y, c, basetime = load(fire_path) # X is a matrix of lon, lat and time (since base_time), y is fire dectections, c is confidence
-lon_array = X[:, 0] # THESE ARE IN WGS84 (ALL SATELLITE DATA IS..)
-lat_array = X[:, 1]
-time_in_days = X[:, 2]
-dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
-dates_fire =  dates_fire_actual.floor("h") # THIS A DATETIME ARRAY
-
-### above is the new setup and below is the old implementation
-# Build the interpolator
-interp = Coord_to_index(degree = 2)
-interp.build(lon_grid, lat_grid)
-
-
-def calc_rhum(temp_K, mixing_ratio): # ADD SURFACE PRESSURE AS AN ARGUMENT and MAKE IT WORK FOR ARRAY ARGUMENTS
-    try:
-        # Constants
-        epsilon = 0.622
-        pressure_pa = 1000 * 100  # fixed until we can get the data
-
-        # Saturation vapor pressure
-        es_hpa = 6.112 * np.exp((17.67 * (temp_K - 273.15)) / ((temp_K - 273.15) + 243.5))
-        es_pa = es_hpa * 100
-
-        # Actual vapor pressure
-        e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
-
-        # Relative humidity
-        rh = (e_pa / es_pa) * 100
-        return rh
-    except Exception as e:
-        print(f"Error in calc_rhum: temp_K={temp_K}, mixing_ratio={mixing_ratio}, error={e}")
-        return np.nan
-
-# Define the function to interpolate continuous features for each coordinate
-def interpolate_data(lon, lat, date_fire):
-    try:
-        time_index = date_proc_times.get_loc(date_fire)
-    except KeyError:
-        # date_fire not found in date_proc_times
-        return None
-
-    # Interpolate spatially at this time index
-    ia, ja = interp.evaluate(lon, lat)
-    i, j = np.round(ia).astype(int), np.round(ja).astype(int)
-
-    # Check if indices are within bounds
-    if (0 <= i < temp.shape[1]) and (0 <= j < temp.shape[2]):
-        data_dict = {
-            'date': date_fire,
+        # Append valid data
+        data = {
+            'date': variables['times'][time_idx],
             'lon': lon,
             'lat': lat,
-            'temp': temp[time_index, i, j],
-            'rain': rain[time_index, i, j],
-            'rhum': calc_rhum(temp[time_index, i, j], vapor[time_index, i, j]),
-            'wind': np.sqrt(wind_u[time_index, i, j]**2 + wind_v[time_index, i, j]**2)
+            'temp': variables['temp'][time_idx, i, j],
+            'rain': variables['rain'][time_idx, i, j],
+            'rhum': calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],variables['press'][time_idx, i, j]),
+            'wind': np.sqrt(
+                variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2,
+            'sw' : variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
+            )
         }
-        return data_dict
-    else:
-        # Indices are out of bounds
-        return None
+        data_interp.append(data)
 
+        # Debug statement for progress
+        if idx % 1000 == 0:
+            print(f"Processed {idx} out of {len(satellite_coords)} records...")
 
-# Start timing and resource monitoring
-start_time = time.time()
-process = psutil.Process(os.getpid())
-start_cpu = process.cpu_percent(interval=None)
-start_mem = process.memory_info().rss  # in bytes
+    return pd.DataFrame(data_interp)
 
-# Perform interpolation with matched dates
-data_interp = []
-no_interpolation_indices = []
+# Main Execution
+if __name__ == "__main__":
+    # Load and validate paths
+    file_paths = get_file_paths()
 
-for idx, (lon, lat, date_fire) in enumerate(zip(lon_array, lat_array, dates_fire)):
-    result = interpolate_data(lon, lat, date_fire)
-    if result is not None:
-        data_interp.append(result) # IF USING NETCDF THEN JUST WRITE IT INTO THE NEXT ROW (
-    else:
-        # print(f"Interpolation failed for lon={lon}, lat={lat}, date={date_fire}")
-        no_interpolation_indices.append(idx)
-        data_interp.append({
-            'date': date_fire,
-            'lon': lon,
-            'lat': lat,
-            'temp': np.nan,
-            'rain': np.nan,
-            'rhum': np.nan,
-            'wind': np.nan
-        })
+    # Load data
+    topography = load_topography(file_paths)
+    vegetation = load_vegetation(file_paths)
+    meteorology = load_meteorology(file_paths)
 
-# Convert the list of dictionaries to a DataFrame for easy handling
-df = pd.DataFrame(data_interp)
+    # Load fire detection data
+    X, y, c, basetime = load(file_paths['fire_path'])
+    lon_array, lat_array, time_in_days = X[:, 0], X[:, 1], X[:, 2]
+    dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
+    dates_fire = dates_fire_actual.floor("h")
 
-# Display a summary of the DataFrame and pickle it
-print(df.head())
-df.to_pickle('processed_data.pkl') # IF THIS IS TO SLOW WE MAY HAVE TO IMPLENT NETCDF instead
-     
-# End timing and resource monitoring
-end_time = time.time()
-end_cpu = process.cpu_percent(interval=None)
-end_mem = process.memory_info().rss  # in bytes
+    # Build interpolator
+    interp = Coord_to_index(degree=2)
+    interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-# Calculate the differences
-total_time = end_time - start_time
-cpu_usage = end_cpu - start_cpu
-memory_usage = end_mem - start_mem
+    # Compute time indices
+    time_indices = compute_time_indices(dates_fire, meteorology['times'])
 
-print(f"Script runtime: {total_time:.2f} seconds")
-print(f"CPU usage change: {cpu_usage:.2f}%")
-print(f"Memory usage change: {memory_usage / (1024 ** 2):.2f} MB")
+    # Perform interpolation
+    satellite_coords = np.column_stack((lon_array, lat_array))
+    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology)
 
-# Analyze missing interpolations
-num_missing = len(no_interpolation_indices)
-total_points = len(lon_array)
-print(f"Number of timestamps without valid interpolation: {num_missing} out of {total_points}")
+    # Save interpolated data
+    interpolated_data.to_pickle('processed_data.pkl')
+    print(f"Interpolated data saved to 'processed_data.pkl'.")
