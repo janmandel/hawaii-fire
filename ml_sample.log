@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/data001/projects/spearsty/hawaii-fire/ml_sample_generator.py", line 85, in <module>
-    fuel_vat = DBF(fuelvat_path)
-  File "/data001/projects/spearsty/miniconda3/envs/hi-fire/lib/python3.9/site-packages/dbfread/dbf.py", line 110, in __init__
-    raise DBFNotFound('could not find file {!r}'.format(filename))
-dbfread.exceptions.DBFNotFound: could not find file '/home/spearsty/p/data/feat/landfire/afbfm/ LF2022_FBFM13_230_HI/LH22_F13_230.tif.vat.dbf'
