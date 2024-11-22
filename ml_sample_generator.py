@@ -8,7 +8,8 @@ from os import path as osp
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
-import rasterio
+import rasterio, rowcol
+from pyproj import CRS, Transformer
 from dbfread import DBF
 from datetime import datetime, timedelta
 import psutil
@@ -38,14 +39,25 @@ def get_file_paths():
 
 def load_topography(file_paths):
     """
-    Load topography data from GeoTIFF files.
+    Load topography data and associated metadata from GeoTIFF files.
+
+    Args:
+        file_paths (dict): Dictionary containing paths to elevation, slope, and aspect files.
+
+    Returns:
+        dict: Contains topography arrays ('elevation', 'slope', 'aspect'), CRS, and transform.
     """
     print("Loading topography data...")
-    return {
-        "elevation": rasterio.open(file_paths['elevation_path']).read(1),
-        "aspect": rasterio.open(file_paths['aspect_path']).read(1),
-        "slope": rasterio.open(file_paths['slope_path']).read(1)
-    }
+    with rasterio.open(file_paths['elevation_path']) as elev, \
+         rasterio.open(file_paths['slope_path']) as slope, \
+         rasterio.open(file_paths['aspect_path']) as aspect:
+        return {
+            "elevation": elev.read(1),
+            "slope": slope.read(1),
+            "aspect": aspect.read(1),
+            "crs": elev.crs.to_string(),
+            "transform": elev.transform,
+        }
 
 def load_vegetation(file_paths):
     """
@@ -165,7 +177,29 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
     return (e_pa / es_pa) * 100
 
-def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
+def get_row_col(lon_array, lat_array, raster_crs, transform):
+    """
+    Get the row and column indices in a raster for arrays of longitudes and latitudes.
+
+    Args:
+        lon_array (np.ndarray): Array of longitudes in WGS84.
+        lat_array (np.ndarray): Array of latitudes in WGS84.
+        raster_crs (str): CRS of the raster (e.g., "EPSG:5070" for Albers Equal Area).
+        transform (Affine): Rasterio affine transform of the raster.
+
+    Returns:
+        tuple: Arrays of row and column indices in the raster.
+    """
+    # Reproject lon, lat arrays to the raster's CRS
+    transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+    raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
+
+    # Get row, col from rasterio.transform.rowcol
+    rows, cols = rowcol(transform, raster_lon, raster_lat)
+
+    return rows.astype(int), cols.astype(int)
+
+def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels):
     """
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
@@ -173,34 +207,70 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
     print('Entering the interpolation loop...')
     data_interp = []
     total_records = len(satellite_coords)
-    progress_interval = 1000000
+    progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
-    for idx, ((lon, lat), time_idx, label) in enumerate(zip(satellite_coords, time_indices, labels)):
-        ia, ja = interp.evaluate(lon, lat)
-        i, j = np.round(ia).astype(int), np.round(ja).astype(int)
+    # Precompute raster indices
+    rows, cols = get_row_col(
+        lon_array=satellite_coords[:, 0],
+        lat_array=satellite_coords[:, 1],
+        raster_crs=topography["crs"],
+        transform=topography["transform"]
+    )
 
-        # Skip invalid points
-        if not (0 <= i < variables['temp'].shape[1] and 0 <= j < variables['temp'].shape[2]):
-            continue
+    for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
+            zip(satellite_coords, time_indices, labels, rows, cols)):
+        try:
+            # Interpolate meteorological variables
+            ia, ja = interp.evaluate(lon, lat)
+            i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
-        # Append valid data
-        data = {
-            'date': variables['times'][time_idx],
-            'lon': lon,
-            'lat': lat,
-            'temp': variables['temp'][time_idx, i, j],
-            'rain': variables['rain'][time_idx, i, j],
-            'rhum': calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],variables['press'][time_idx, i, j]),
-            'wind': np.sqrt(
-                variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2),
-            'sw': variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j],
-            'label': label,
-        }
-        data_interp.append(data)
+            # Skip invalid meteorological indices
+            if not (0 <= i < variables['temp'].shape[1] and 0 <= j < variables['temp'].shape[2]):
+                continue
 
-        # Debug statement for progress
-        if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
-            print(f"Processed {idx + 1} out of {total_records} records...")
+            # Extract meteorological data
+            temp_val = variables['temp'][time_idx, i, j]
+            rain_val = variables['rain'][time_idx, i, j]
+            rhum_val = calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],
+                                 variables['press'][time_idx, i, j])
+            wind_val = np.sqrt(
+                variables['wind_u'][time_idx, i, j] ** 2 + variables['wind_v'][time_idx, i, j] ** 2
+            )
+            sw_val = variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
+
+            # Extract raster features
+            if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
+                elevation_val = topography["elevation"][row, col]
+                slope_val = topography["slope"][row, col]
+                aspect_val = topography["aspect"][row, col]
+                fuelmod_val = vegetation["fuelmod"][row, col]
+            else:
+                elevation_val, slope_val, aspect_val, fuelmod_val = np.nan, np.nan, np.nan, "Out of bounds"
+
+            # Append results
+            data = {
+                'date': variables['times'][time_idx],
+                'lon': lon,
+                'lat': lat,
+                'temp': temp_val,
+                'rain': rain_val,
+                'rhum': rhum_val,
+                'wind': wind_val,
+                'sw': sw_val,
+                'elevation': elevation_val,
+                'slope': slope_val,
+                'aspect': aspect_val,
+                'fuelmod': fuelmod_val,
+                'label': label,
+            }
+            data_interp.append(data)
+
+            # Progress logging
+            if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
+                print(f"Processed {idx + 1} out of {total_records} records...")
+
+        except Exception as e:
+            print(f"Error processing record {idx + 1}: {e}")
 
     return pd.DataFrame(data_interp)
 
@@ -217,7 +287,11 @@ def test_function(file_paths, subset_size, confidence_threshold):
     time_ub = meteorology['times'].max()
     print(f"Meteorology time range: {time_lb} to {time_ub}")
 
-    # Step 2: Load and filter fire detection data
+    # Step 2: Load topography and vegetation data
+    topography = load_topography(file_paths)
+    vegetation = load_vegetation(file_paths)
+
+    # Step 3: Load and filter fire detection data
     print("Loading and filtering fire detection data...")
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
     lon_array = fire_detection_data['lon'][:subset_size]
@@ -225,19 +299,19 @@ def test_function(file_paths, subset_size, confidence_threshold):
     dates_fire = fire_detection_data['dates_fire'][:subset_size]
     labels = fire_detection_data['labels'][:subset_size]
 
-    # Step 3: Build interpolator
+    # Step 4: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 4: Compute time indices
+    # Step 5: Compute time indices
     print("Computing time indices...")
     time_indices = compute_time_indices(dates_fire, meteorology['times'])
 
-    # Step 5: Perform interpolation
+    # Step 6: Perform interpolation
     print("Performing interpolation...")
     satellite_coords = np.column_stack((lon_array, lat_array))
-    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, labels)
+    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels)
 
     # Step 6: Save and return results
     print("Saving test results...")
@@ -293,7 +367,7 @@ if __name__ == "__main__":
 
         # Perform interpolation
         satellite_coords = np.column_stack((lon_array, lat_array))
-        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, labels)
+        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels)
 
         # Save interpolated data
         interpolated_data.to_pickle('processed_data.pkl')
