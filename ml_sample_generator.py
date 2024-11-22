@@ -85,6 +85,9 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
     """
     print("Loading fire detection data...")
     X, y, c, basetime = load(file_paths['fire_path'])
+    time_in_days_raw = X[:, 2]
+    dates_fire_actual_raw = basetime + pd.to_timedelta(time_in_days_raw, unit='D')
+    dates_fire_raw = dates_fire_actual_raw.floor("h")  # Round to nearest hou
 
     # Debug: Print initial statistics
     print(f"Total data points: {len(X)}")
@@ -93,7 +96,7 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
 
     # Filter out points with label 1, confidence < confidence_threshold,and outside of time bounds
     valid_indices = (
-            ~((y == 1) & (c < confidence_threshold)) & (dates_fire >= time_lb) & (dates_fire <= time_ub)
+            ~((y == 1) & (c < confidence_threshold)) & (dates_fire_raw >= time_lb) & (dates_fire_raw <= time_ub)
     ) # Keep points not failing this condition
     X_filtered = X[valid_indices]
     y_filtered = y[valid_indices]
@@ -159,6 +162,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
     """
+    print('Entering the interpolation loop...')
     data_interp = []
 
     for idx, ((lon, lat), time_idx) in enumerate(zip(satellite_coords, time_indices)):
