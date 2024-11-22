@@ -9,7 +9,7 @@ import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import rasterio
-from rasterio import rowcol
+from rasterio.transform import rowcol
 from pyproj import CRS, Transformer
 from dbfread import DBF
 from datetime import datetime, timedelta
