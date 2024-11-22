@@ -218,80 +218,36 @@ def test_function(file_paths, subset_size, confidence_threshold, random_seed):
     """
     print(f"Running test function with subset size: {subset_size}")
 
-    # Step 1: Load meteorology timestamps
-    print("Loading meteorology timestamps...")
-    meteorology_data = nc.Dataset(file_paths["process_path"])
-    processed_times = pd.to_datetime(
-        [t.strip() for t in meteorology_data.variables["times"][:]],
-        format="%Y-%m-%d_%H:%M:%S",
-        errors="coerce",
-    )
-    time_lb = processed_times.min()
-    time_ub = processed_times.max()
+    # Step 1: Load meteorology data
+    print("Loading meteorology data...")
+    meteorology = load_meteorology(file_paths)
+    time_lb = meteorology['times'].min()
+    time_ub = meteorology['times'].max()
     print(f"Meteorology time range: {time_lb} to {time_ub}")
 
     # Step 2: Load and filter fire detection data
     print("Loading and filtering fire detection data...")
-    X, y, c, basetime = load(file_paths["fire_path"])
-    time_in_days_raw = X[:, 2]
-    dates_fire_actual_raw = basetime + pd.to_timedelta(time_in_days_raw, unit="D")
-    dates_fire_raw = dates_fire_actual_raw.floor("h")  # Round to nearest hour
+    fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
+    lon_array = fire_detection_data['lon'][:subset_size]
+    lat_array = fire_detection_data['lat'][:subset_size]
+    dates_fire = fire_detection_data['dates_fire'][:subset_size]
+    labels = fire_detection_data['labels'][:subset_size]
 
-    valid_indices = (
-            ~((y == 1) & (c < confidence_threshold)) &
-            (dates_fire_raw >= time_lb) & (dates_fire_raw <= time_ub)
-    )
-
-    X_filtered = X[valid_indices]
-    y_filtered = y[valid_indices]
-    dates_fire_filtered = dates_fire_raw[valid_indices]
-
-    # Step 3: Set random seed and sample a subset
-    print("Sampling a subset of data...")
-    random.seed(random_seed)  # Set the random seed for reproducibility
-    sample_indices = random.sample(range(len(X_filtered)), min(subset_size, len(X_filtered)))
-    X_sampled = X_filtered[sample_indices]
-    y_sampled = y_filtered[sample_indices]
-    dates_fire_sampled = dates_fire_filtered[sample_indices]
-
-    # Step 4: Recenter timestamps to hour 0
-    print("Recentering sampled timestamps...")
-    sample_start_time = dates_fire_sampled.min()
-    recentered_dates = dates_fire_sampled - sample_start_time
-    recentered_hours = recentered_dates.total_seconds() // 3600  # Convert to hours
-
-    # Step 5: Compute time indices for the recentered timestamps
-    print("Computing time indices for the subset...")
-    time_indices = recentered_hours.astype(int)
-    if np.any(time_indices < 0):
-        raise ValueError("Invalid time indices: Some computed indices are negative after recentering.")
-
-    # Load only the required meteorology slices
-    meteorology = {
-        "rain": meteorology_data.variables["RAIN"][time_indices, :, :],
-        "temp": meteorology_data.variables["T2"][time_indices, :, :],
-        "vapor": meteorology_data.variables["Q2"][time_indices, :, :],
-        "wind_u": meteorology_data.variables["U10"][time_indices, :, :],
-        "wind_v": meteorology_data.variables["V10"][time_indices, :, :],
-        "swdwn": meteorology_data.variables["SWDOWN"][time_indices, :, :],
-        "swup": meteorology_data.variables["SWUPT"][time_indices, :, :],
-        "press": meteorology_data.variables["PSFC"][time_indices, :, :],
-        "lon_grid": meteorology_data.variables["XLONG"][:, :],
-        "lat_grid": meteorology_data.variables["XLAT"][:, :],
-        "times": processed_times[time_indices],
-    }
-
-    # Step 6: Build interpolator
+    # Step 3: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
-    interp.build(meteorology["lon_grid"], meteorology["lat_grid"])
+    interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 7: Perform interpolation
-    print("Interpolating sampled data...")
-    satellite_coords = X_sampled[:, :2]  # lon, lat
-    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, y_sampled)
+    # Step 4: Compute time indices
+    print("Computing time indices...")
+    time_indices = compute_time_indices(dates_fire, meteorology['times'])
 
-    # Step 8: Save and return results
+    # Step 5: Perform interpolation
+    print("Performing interpolation...")
+    satellite_coords = np.column_stack((lon_array, lat_array))
+    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, labels)
+
+    # Step 6: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
