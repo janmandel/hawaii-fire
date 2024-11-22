@@ -257,6 +257,13 @@ def test_function(file_paths, subset_size, confidence_threshold, random_seed):
     print("Computing time indices for the subset...")
     time_indices = compute_time_indices(dates_fire_sampled, processed_times)
 
+    # Step 5: Validate time indices
+    valid_time_indices = [
+        idx for idx in time_indices if 0 <= idx < len(processed_times)
+    ]
+    if len(valid_time_indices) < len(time_indices):
+        print(f"Warning: Skipping {len(time_indices) - len(valid_time_indices)} invalid time indices.")
+
     # Load only the required meteorology slices
     meteorology = {
         "rain": meteorology_data.variables["RAIN"][time_indices, :, :],
@@ -272,17 +279,17 @@ def test_function(file_paths, subset_size, confidence_threshold, random_seed):
         "times": processed_times[time_indices],
     }
 
-    # Step 5: Build interpolator
+    # Step 6: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology["lon_grid"], meteorology["lat_grid"])
 
-    # Step 6: Perform interpolation
+    # Step 7: Perform interpolation
     print("Interpolating sampled data...")
     satellite_coords = X_sampled[:, :2]  # lon, lat
     interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, y_sampled)
 
-    # Step 7: Save and return results
+    # Step 8: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
