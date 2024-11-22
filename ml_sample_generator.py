@@ -175,7 +175,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
     total_records = len(satellite_coords)
     progress_interval = 1000000
 
-    for idx, ((lon, lat), time_idx, label) in enumerate(zip(satellite_coords, time_indices)):
+    for idx, ((lon, lat), time_idx, label) in enumerate(zip(satellite_coords, time_indices, labels)):
         ia, ja = interp.evaluate(lon, lat)
         i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
@@ -212,7 +212,6 @@ def test_function(file_paths, subset_size, confidence_threshold):
     print(f"Running test function with subset size: {subset_size}")
 
     # Step 1: Load meteorology data
-    print("Loading meteorology data...")
     meteorology = load_meteorology(file_paths)
     time_lb = meteorology['times'].min()
     time_ub = meteorology['times'].max()
