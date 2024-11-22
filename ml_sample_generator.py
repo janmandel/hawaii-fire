@@ -76,10 +76,11 @@ def load_meteorology(file_paths):
         "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
     }
 
-def load_fire_detection(file_paths, confidence_threshold):
+def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
     """
     Load and process fire detection data.
     Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
+    and time indices that aren't in [time_lb, time_ub]
 
     """
     print("Loading fire detection data...")
@@ -90,8 +91,10 @@ def load_fire_detection(file_paths, confidence_threshold):
     print(f"Number of 'Fire' labels: {np.sum(y == 1)}")
     print(f"Number of 'Fire' labels with confidence < {confidence_threshold}: {np.sum((y == 1) & (c < confidence_threshold))}")
 
-    # Filter out points with label 1 and confidence < confidence_threshold
-    valid_indices = ~((y == 1) & (c < confidence_threshold))  # Keep points not failing this condition
+    # Filter out points with label 1, confidence < confidence_threshold,and outside of time bounds
+    valid_indices = (
+            ~((y == 1) & (c < confidence_threshold)) & (dates_fire >= time_lb) & (dates_fire <= time_ub)
+    ) # Keep points not failing this condition
     X_filtered = X[valid_indices]
     y_filtered = y[valid_indices]
 
@@ -121,6 +124,7 @@ def compute_time_indices(satellite_times, processed_times):
     Compute the number of hours since the start of processed data for each satellite time.
     Ensure alignment between satellite and processed data timestamps.
     """
+    print("Computing the time indices for the fire detection data")
     start_time = processed_times[0]
     hours_since_start = (satellite_times - start_time).total_seconds() // 3600
     indices = hours_since_start.astype(int)
@@ -194,15 +198,18 @@ if __name__ == "__main__":
     topography = load_topography(file_paths)
     vegetation = load_vegetation(file_paths)
     meteorology = load_meteorology(file_paths)
+    time_lb = meteorology['times'].min()
+    time_ub = meteorology['times'].max()
 
     # Load fire detection data
-    fire_detection_data = load_fire_detection(file_paths, confidence_threshold=70)
+    fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold=70)
     lon_array = fire_detection_data['lon']
     lat_array = fire_detection_data['lat']
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
     # Build interpolator
+    print("Building the interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
