@@ -246,23 +246,25 @@ def test_function(file_paths, subset_size, confidence_threshold, random_seed):
     y_filtered = y[valid_indices]
     dates_fire_filtered = dates_fire_raw[valid_indices]
 
-    # Step 3: Randomly sample a subset
+    # Step 3: Set random seed and sample a subset
+    print("Sampling a subset of data...")
     random.seed(random_seed)  # Set the random seed for reproducibility
     sample_indices = random.sample(range(len(X_filtered)), min(subset_size, len(X_filtered)))
     X_sampled = X_filtered[sample_indices]
     y_sampled = y_filtered[sample_indices]
     dates_fire_sampled = dates_fire_filtered[sample_indices]
 
-    # Step 4: Compute time indices for the subset
-    print("Computing time indices for the subset...")
-    time_indices = compute_time_indices(dates_fire_sampled, processed_times)
+    # Step 4: Recenter timestamps to hour 0
+    print("Recentering sampled timestamps...")
+    sample_start_time = dates_fire_sampled.min()
+    recentered_dates = dates_fire_sampled - sample_start_time
+    recentered_hours = recentered_dates.total_seconds() // 3600  # Convert to hours
 
-    # Step 5: Validate time indices
-    valid_time_indices = [
-        idx for idx in time_indices if 0 <= idx < len(processed_times)
-    ]
-    if len(valid_time_indices) < len(time_indices):
-        print(f"Warning: Skipping {len(time_indices) - len(valid_time_indices)} invalid time indices.")
+    # Step 5: Compute time indices for the recentered timestamps
+    print("Computing time indices for the subset...")
+    time_indices = recentered_hours.astype(int)
+    if np.any(time_indices < 0):
+        raise ValueError("Invalid time indices: Some computed indices are negative after recentering.")
 
     # Load only the required meteorology slices
     meteorology = {
