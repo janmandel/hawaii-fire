@@ -169,6 +169,8 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
     """
     print('Entering the interpolation loop...')
     data_interp = []
+    total_records = len(satellite_coords)
+    progress_interval = 10000
 
     for idx, ((lon, lat), time_idx) in enumerate(zip(satellite_coords, time_indices)):
         ia, ja = interp.evaluate(lon, lat)
@@ -193,8 +195,8 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
         data_interp.append(data)
 
         # Debug statement for progress
-        if idx % 1000 == 0:
-            print(f"Processed {idx} out of {len(satellite_coords)} records...")
+        if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
+            print(f"Processed {idx + 1} out of {total_records} records...")
 
     return pd.DataFrame(data_interp)
 
