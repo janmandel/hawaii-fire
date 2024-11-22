@@ -13,6 +13,7 @@ from dbfread import DBF
 from datetime import datetime, timedelta
 import psutil
 import time
+import random
 
 # Functions
 def get_file_paths():
@@ -203,7 +204,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
 
     return pd.DataFrame(data_interp)
 
-def test_function(file_paths, subset_size, confidence_threshold):
+def test_function(file_paths, subset_size, confidence_threshold, random_seed):
     """
     Test the workflow with a subset of the data for debugging or validation.
 
@@ -246,6 +247,7 @@ def test_function(file_paths, subset_size, confidence_threshold):
     dates_fire_filtered = dates_fire_raw[valid_indices]
 
     # Step 3: Randomly sample a subset
+    random.seed(random_seed)  # Set the random seed for reproducibility
     sample_indices = random.sample(range(len(X_filtered)), min(subset_size, len(X_filtered)))
     X_sampled = X_filtered[sample_indices]
     y_sampled = y_filtered[sample_indices]
@@ -293,6 +295,7 @@ if __name__ == "__main__":
 
     # Define test parameters
     subset_size = 1000
+    random_seed = 32
     confidence_threshold = 70
 
     # Toggle testing mode
