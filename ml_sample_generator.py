@@ -122,7 +122,7 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
         "labels": y_filtered
     }
 
-def compute_time_indices(satellite_times, processed_times):
+def compute_time_indices(satellite_times, processed_times, validate=False):
     """
     Compute the number of hours since the start of processed data for each satellite time.
     Ensure alignment between satellite and processed data timestamps.
@@ -134,21 +134,23 @@ def compute_time_indices(satellite_times, processed_times):
     indices = hours_since_start.astype(int)
 
     # Validate indices
-    for i in range(len(indices)):
-        idx = indices[i]
-        sat_time = satellite_times[i]
+    if validate:
+        print("Validating indices...")
+        for i in range(len(indices)):
+            idx = indices[i]
+            sat_time = satellite_times[i]
 
-        # Check index validity
-        if 0 <= idx < len(processed_times):
-            processed_time = processed_times[idx]
-            if abs((processed_time - sat_time).total_seconds()) > 3600:
-                raise ValueError(f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
-        else:
-            raise IndexError(f"Index {idx} out of bounds for processed data times.")
+            # Check index validity
+            if 0 <= idx < len(processed_times):
+                processed_time = processed_times[idx]
+                if abs((processed_time - sat_time).total_seconds()) > 3600:
+                    raise ValueError(f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
+            else:
+                raise IndexError(f"Index {idx} out of bounds for processed data times.")
 
-        # Print progress every 10,000 iterations
-        if i % 10000 == 0:
-            print(f"Processed {i} out of {len(indices)} records...")
+            # Print progress every 10,000 iterations
+            if i % 1000000 == 0:
+                print(f"Processed {i} out of {len(indices)} records...")
 
     return indices
 
@@ -162,7 +164,7 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
     return (e_pa / es_pa) * 100
 
-def interpolate_all(satellite_coords, time_indices, interp, variables):
+def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
     """
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
@@ -170,7 +172,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
     print('Entering the interpolation loop...')
     data_interp = []
     total_records = len(satellite_coords)
-    progress_interval = 10000
+    progress_interval = 1000000
 
     for idx, ((lon, lat), time_idx) in enumerate(zip(satellite_coords, time_indices)):
         ia, ja = interp.evaluate(lon, lat)
@@ -191,6 +193,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
             'wind': np.sqrt(
                 variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2),
             'sw': variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
+            'label': label,
         }
         data_interp.append(data)
 
@@ -200,37 +203,139 @@ def interpolate_all(satellite_coords, time_indices, interp, variables):
 
     return pd.DataFrame(data_interp)
 
+def test_function(file_paths, subset_size, confidence_threshold):
+    """
+    Test the workflow with a subset of the data for debugging or validation.
+
+    Args:
+        file_paths (dict): Dictionary containing file paths.
+        subset_size (int): Number of fire detection data points to process.
+        confidence_threshold (float): Minimum confidence for points labeled as 1.
+
+    Returns:
+        pd.DataFrame: Interpolated data for the subset.
+    """
+    print(f"Running test function with subset size: {subset_size}")
+
+    # Step 1: Load meteorology timestamps
+    print("Loading meteorology timestamps...")
+    meteorology_data = nc.Dataset(file_paths["process_path"])
+    processed_times = pd.to_datetime(
+        [t.strip() for t in meteorology_data.variables["times"][:]],
+        format="%Y-%m-%d_%H:%M:%S",
+        errors="coerce",
+    )
+    time_lb = processed_times.min()
+    time_ub = processed_times.max()
+    print(f"Meteorology time range: {time_lb} to {time_ub}")
+
+    # Step 2: Load and filter fire detection data
+    print("Loading and filtering fire detection data...")
+    X, y, c, basetime = load(file_paths["fire_path"])
+    time_in_days_raw = X[:, 2]
+    dates_fire_actual_raw = basetime + pd.to_timedelta(time_in_days_raw, unit="D")
+    dates_fire_raw = dates_fire_actual_raw.floor("h")  # Round to nearest hour
+
+    valid_indices = (
+            ~((y == 1) & (c < confidence_threshold)) &
+            (dates_fire_raw >= time_lb) & (dates_fire_raw <= time_ub)
+    )
+
+    X_filtered = X[valid_indices]
+    y_filtered = y[valid_indices]
+    dates_fire_filtered = dates_fire_raw[valid_indices]
+
+    # Step 3: Randomly sample a subset
+    sample_indices = random.sample(range(len(X_filtered)), min(subset_size, len(X_filtered)))
+    X_sampled = X_filtered[sample_indices]
+    y_sampled = y_filtered[sample_indices]
+    dates_fire_sampled = dates_fire_filtered[sample_indices]
+
+    # Step 4: Compute time indices for the subset
+    print("Computing time indices for the subset...")
+    time_indices = compute_time_indices(dates_fire_sampled, processed_times)
+
+    # Load only the required meteorology slices
+    meteorology = {
+        "rain": meteorology_data.variables["RAIN"][time_indices, :, :],
+        "temp": meteorology_data.variables["T2"][time_indices, :, :],
+        "vapor": meteorology_data.variables["Q2"][time_indices, :, :],
+        "wind_u": meteorology_data.variables["U10"][time_indices, :, :],
+        "wind_v": meteorology_data.variables["V10"][time_indices, :, :],
+        "swdwn": meteorology_data.variables["SWDOWN"][time_indices, :, :],
+        "swup": meteorology_data.variables["SWUPT"][time_indices, :, :],
+        "press": meteorology_data.variables["PSFC"][time_indices, :, :],
+        "lon_grid": meteorology_data.variables["XLONG"][:, :],
+        "lat_grid": meteorology_data.variables["XLAT"][:, :],
+        "times": processed_times[time_indices],
+    }
+
+    # Step 5: Build interpolator
+    print("Building interpolator...")
+    interp = Coord_to_index(degree=2)
+    interp.build(meteorology["lon_grid"], meteorology["lat_grid"])
+
+    # Step 6: Perform interpolation
+    print("Interpolating sampled data...")
+    satellite_coords = X_sampled[:, :2]  # lon, lat
+    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, y_sampled)
+
+    # Step 7: Save and return results
+    print("Saving test results...")
+    interpolated_data.to_pickle("test_processed_data.pkl")
+    print("Test data saved to 'test_processed_data.pkl'.")
+    return interpolated_data
+
 # Main Execution
 if __name__ == "__main__":
     # Load and validate paths
     file_paths = get_file_paths()
 
-    # Load data
-    topography = load_topography(file_paths)
-    vegetation = load_vegetation(file_paths)
-    meteorology = load_meteorology(file_paths)
-    time_lb = meteorology['times'].min()
-    time_ub = meteorology['times'].max()
+    # Define test parameters
+    subset_size = 1000
+    confidence_threshold = 70
 
-    # Load fire detection data
-    fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold=70)
-    lon_array = fire_detection_data['lon']
-    lat_array = fire_detection_data['lat']
-    dates_fire = fire_detection_data['dates_fire']
-    labels = fire_detection_data['labels']
+    # Toggle testing mode
+    test = True  # Set to False to run the full workflow
 
-    # Build interpolator
-    print("Building the interpolator...")
-    interp = Coord_to_index(degree=2)
-    interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
+    if test:
+        print("Running the test function...")
+        test_data = test_function(file_paths, subset_size, confidence_threshold)
 
-    # Compute time indices
-    time_indices = compute_time_indices(dates_fire, meteorology['times'])
+        if test_data is not None:
+            print("Test run completed successfully. Displaying head of the DataFrame:")
+            print(test_data.head())  # Fix: Call `.head()` as a method
+        else:
+            print("Test run failed or returned no data.")
+    else:
+        print("Skipping testing, running the full workflow...")
 
-    # Perform interpolation
-    satellite_coords = np.column_stack((lon_array, lat_array))
-    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology)
+        # Load data
+        topography = load_topography(file_paths)
+        vegetation = load_vegetation(file_paths)
+        meteorology = load_meteorology(file_paths)
+        time_lb = meteorology['times'].min()
+        time_ub = meteorology['times'].max()
 
-    # Save interpolated data
-    interpolated_data.to_pickle('processed_data.pkl')
-    print(f"Interpolated data saved to 'processed_data.pkl'.")
+        # Load fire detection data
+        fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
+        lon_array = fire_detection_data['lon']
+        lat_array = fire_detection_data['lat']
+        dates_fire = fire_detection_data['dates_fire']
+        labels = fire_detection_data['labels']
+
+        # Build interpolator
+        print("Building the interpolator...")
+        interp = Coord_to_index(degree=2)
+        interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
+
+        # Compute time indices
+        time_indices = compute_time_indices(dates_fire, meteorology['times'], validate=False)
+
+        # Perform interpolation
+        satellite_coords = np.column_stack((lon_array, lat_array))
+        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, labels)
+
+        # Save interpolated data
+        interpolated_data.to_pickle('processed_data.pkl')
+        print(f"Interpolated data saved to 'processed_data.pkl'.")
