@@ -192,7 +192,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
             'rhum': calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],variables['press'][time_idx, i, j]),
             'wind': np.sqrt(
                 variables['wind_u'][time_idx, i, j]**2 + variables['wind_v'][time_idx, i, j]**2),
-            'sw': variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
+            'sw': variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j],
             'label': label,
         }
         data_interp.append(data)
