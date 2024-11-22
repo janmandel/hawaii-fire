@@ -303,7 +303,7 @@ if __name__ == "__main__":
 
     if test:
         print("Running the test function...")
-        test_data = test_function(file_paths, subset_size, confidence_threshold)
+        test_data = test_function(file_paths, subset_size, confidence_threshold, random_seed)
 
         if test_data is not None:
             print("Test run completed successfully. Displaying head of the DataFrame:")
