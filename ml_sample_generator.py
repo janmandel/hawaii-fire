@@ -128,12 +128,17 @@ def compute_time_indices(satellite_times, processed_times):
     Ensure alignment between satellite and processed data timestamps.
     """
     print("Computing the time indices for the fire detection data")
+    # Calculate hours since the start of processed times
     start_time = processed_times[0]
     hours_since_start = (satellite_times - start_time).total_seconds() // 3600
     indices = hours_since_start.astype(int)
 
     # Validate indices
-    for idx, sat_time in zip(indices, satellite_times):
+    for i in range(len(indices)):
+        idx = indices[i]
+        sat_time = satellite_times[i]
+
+        # Check index validity
         if 0 <= idx < len(processed_times):
             processed_time = processed_times[idx]
             if abs((processed_time - sat_time).total_seconds()) > 3600:
@@ -141,9 +146,9 @@ def compute_time_indices(satellite_times, processed_times):
         else:
             raise IndexError(f"Index {idx} out of bounds for processed data times.")
 
-        # Debug statement for progress
-        if idx % 1000 == 0:
-            print(f"Processed {idx} out of {len(satellite_times)} records...")
+        # Print progress every 10,000 iterations
+        if i % 10000 == 0:
+            print(f"Processed {i} out of {len(indices)} records...")
 
     return indices
 
