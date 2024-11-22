@@ -204,17 +204,10 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
 
     return pd.DataFrame(data_interp)
 
-def test_function(file_paths, subset_size, confidence_threshold, random_seed):
+def test_function(file_paths, subset_size, confidence_threshold):
     """
     Test the workflow with a subset of the data for debugging or validation.
 
-    Args:
-        file_paths (dict): Dictionary containing file paths.
-        subset_size (int): Number of fire detection data points to process.
-        confidence_threshold (float): Minimum confidence for points labeled as 1.
-
-    Returns:
-        pd.DataFrame: Interpolated data for the subset.
     """
     print(f"Running test function with subset size: {subset_size}")
 
@@ -259,8 +252,7 @@ if __name__ == "__main__":
     file_paths = get_file_paths()
 
     # Define test parameters
-    subset_size = 1000
-    random_seed = 32
+    subset_size = 10000
     confidence_threshold = 70
 
     # Toggle testing mode
