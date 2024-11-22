@@ -175,7 +175,7 @@ def interpolate_all(satellite_coords, time_indices, interp, variables, labels):
     total_records = len(satellite_coords)
     progress_interval = 1000000
 
-    for idx, ((lon, lat), time_idx) in enumerate(zip(satellite_coords, time_indices)):
+    for idx, ((lon, lat), time_idx, label) in enumerate(zip(satellite_coords, time_indices)):
         ia, ja = interp.evaluate(lon, lat)
         i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
@@ -268,7 +268,7 @@ if __name__ == "__main__":
 
     if test:
         print("Running the test function...")
-        test_data = test_function(file_paths, subset_size, confidence_threshold, random_seed)
+        test_data = test_function(file_paths, subset_size, confidence_threshold)
 
         if test_data is not None:
             print("Test run completed successfully. Displaying head of the DataFrame:")
