@@ -181,7 +181,7 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
 def get_row_col(lon_array, lat_array, raster_crs, transform):
     """
     Get the row and column indices in a raster for arrays of longitudes and latitudes.
-
+    To be used for retrieval of values from geotiffs at longitude and latitude
     Args:
         lon_array (np.ndarray): Array of longitudes in WGS84.
         lat_array (np.ndarray): Array of latitudes in WGS84.
@@ -191,6 +191,7 @@ def get_row_col(lon_array, lat_array, raster_crs, transform):
     Returns:
         tuple: Arrays of row and column indices in the raster.
     """
+    print('Computing row and column indices for topography and vegetation files...')
     # Reproject lon, lat arrays to the raster's CRS
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
     raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
@@ -221,23 +222,23 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
             zip(satellite_coords, time_indices, labels, rows, cols)):
         try:
-            # Interpolate meteorological variables
+            # Interpolate meteorological meteorology
             ia, ja = interp.evaluate(lon, lat)
             i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
             # Skip invalid meteorological indices
-            if not (0 <= i < variables['temp'].shape[1] and 0 <= j < variables['temp'].shape[2]):
+            if not (0 <= i < meteorology['temp'].shape[1] and 0 <= j < meteorology['temp'].shape[2]):
                 continue
 
             # Extract meteorological data
-            temp_val = variables['temp'][time_idx, i, j]
-            rain_val = variables['rain'][time_idx, i, j]
-            rhum_val = calc_rhum(variables['temp'][time_idx, i, j], variables['vapor'][time_idx, i, j],
-                                 variables['press'][time_idx, i, j])
+            temp_val = meteorology['temp'][time_idx, i, j]
+            rain_val = meteorology['rain'][time_idx, i, j]
+            rhum_val = calc_rhum(meteorology['temp'][time_idx, i, j], meteorology['vapor'][time_idx, i, j],
+                                 meteorology['press'][time_idx, i, j])
             wind_val = np.sqrt(
-                variables['wind_u'][time_idx, i, j] ** 2 + variables['wind_v'][time_idx, i, j] ** 2
+                meteorology['wind_u'][time_idx, i, j] ** 2 + meteorology['wind_v'][time_idx, i, j] ** 2
             )
-            sw_val = variables['swdwn'][time_idx, i, j] - variables['swup'][time_idx, i, j]
+            sw_val = meteorology['swdwn'][time_idx, i, j] - meteorology['swup'][time_idx, i, j] # NEED TO VALIDATE YOUR COMPUTATION
 
             # Extract raster features
             if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
@@ -250,7 +251,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
 
             # Append results
             data = {
-                'date': variables['times'][time_idx],
+                'date': meteorology['times'][time_idx],
                 'lon': lon,
                 'lat': lat,
                 'temp': temp_val,
@@ -297,7 +298,7 @@ def test_function(file_paths, subset_size, confidence_threshold):
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
     lon_array = fire_detection_data['lon'][:subset_size]
     lat_array = fire_detection_data['lat'][:subset_size]
-    dates_fire = fire_detection_data['dates_fire'][:subset_size]
+    dates_fire = fire_detection_data['dates_fire'][:subset_size] # Go from subset start to subset end to take a range anywhere we have :subsetsize
     labels = fire_detection_data['labels'][:subset_size]
 
     # Step 4: Build interpolator
@@ -306,11 +307,9 @@ def test_function(file_paths, subset_size, confidence_threshold):
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
     # Step 5: Compute time indices
-    print("Computing time indices...")
     time_indices = compute_time_indices(dates_fire, meteorology['times'])
 
     # Step 6: Perform interpolation
-    print("Performing interpolation...")
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels)
 
