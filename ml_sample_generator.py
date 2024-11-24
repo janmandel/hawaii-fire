@@ -136,35 +136,56 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
         "labels": y_filtered
     }
 
-def compute_time_indices(satellite_times, processed_times, validate=False):
+
+def compute_time_indices(satellite_times, processed_times, debug):
     """
     Compute the number of hours since the start of processed data for each satellite time.
     Ensure alignment between satellite and processed data timestamps.
+
+    Args:
+        satellite_times (pd.Series): Satellite observation times.
+        processed_times (pd.Series): Times in the processed meteorology dataset.
+        debug (bool): If True, print debug information and validate time indices.
+
+    Returns:
+        np.ndarray: Array of computed time indices.
     """
-    print("Computing the time indices for the fire detection data")
-    # Calculate hours since the start of processed times
+    print("Computing the time indices for the fire detection data...")
     start_time = processed_times[0]
     hours_since_start = (satellite_times - start_time).total_seconds() // 3600
     indices = hours_since_start.astype(int)
+    validate = debug
+    total_records = len(processed_times)
+    progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
-    # Validate indices
+    if debug:
+        print(f"Debug: Time index range: {indices.min()} to {indices.max()}")
+        print(f"Debug: First few time indices: {indices[:10]}")
+        print(f"Debug: Satellite times min/max: {satellite_times.min()} / {satellite_times.max()}")
+        print(f"Debug: Processed times min/max: {processed_times.min()} / {processed_times.max()}")
+
     if validate:
         print("Validating indices...")
         for i in range(len(indices)):
             idx = indices[i]
-            sat_time = satellite_times[i]
+            sat_time = satellite_times.iloc[i]
 
             # Check index validity
             if 0 <= idx < len(processed_times):
                 processed_time = processed_times[idx]
                 if abs((processed_time - sat_time).total_seconds()) > 3600:
-                    raise ValueError(f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
+                    if debug:
+                        print(f"Debug: Mismatch at index {i}: processed_time={processed_time}, sat_time={sat_time}")
+                    raise ValueError(
+                        f"Mismatch: Processed time {processed_time} does not match satellite time {sat_time}.")
             else:
+                if debug:
+                    print(f"Debug: Index {idx} out of bounds at record {i}: sat_time={sat_time}")
                 raise IndexError(f"Index {idx} out of bounds for processed data times.")
 
-            # Print progress every 10,000 iterations
-            if i % 1000000 == 0:
-                print(f"Processed {i} out of {len(indices)} records...")
+                # Progress logging
+                if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
+                    print(f"Processed {idx + 1} out of {total_records} records...")
 
     return indices
 
@@ -178,30 +199,50 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
     return (e_pa / es_pa) * 100
 
-def get_row_col(lon_array, lat_array, raster_crs, transform):
+
+def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
     """
     Get the row and column indices in a raster for arrays of longitudes and latitudes.
-    To be used for retrieval of values from geotiffs at longitude and latitude
+    To be used for retrieval of values from GeoTIFFs at longitude and latitude.
+
     Args:
         lon_array (np.ndarray): Array of longitudes in WGS84.
         lat_array (np.ndarray): Array of latitudes in WGS84.
         raster_crs (str): CRS of the raster (e.g., "EPSG:5070" for Albers Equal Area).
         transform (Affine): Rasterio affine transform of the raster.
+        debug (bool): If True, prints debug information.
 
     Returns:
         tuple: Arrays of row and column indices in the raster.
     """
     print('Computing row and column indices for topography and vegetation files...')
+
     # Reproject lon, lat arrays to the raster's CRS
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
     raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
 
+    # Debug: Check reprojected coordinates
+    if debug:
+        print(f"Debug: Reprojected lon min/max: {raster_lon.min()} / {raster_lon.max()}")
+        print(f"Debug: Reprojected lat min/max: {raster_lat.min()} / {raster_lat.max()}")
+
     # Get row, col from rasterio.transform.rowcol
     rows, cols = rowcol(transform, raster_lon, raster_lat)
 
+    # Debug: Check row/col indices
+    if debug:
+        print(f"Debug: Row indices min/max: {rows.min()} / {rows.max()}")
+        print(f"Debug: Column indices min/max: {cols.min()} / {cols.max()}")
+        raster_shape = (transform[0], transform[1])  # Rows, Columns of the raster
+        out_of_bounds = (
+                (rows < 0) | (rows >= raster_shape[0]) |
+                (cols < 0) | (cols >= raster_shape[1])
+        )
+        print(f"Debug: Out-of-bounds indices: {np.sum(out_of_bounds)} / {len(rows)}")
+
     return rows.astype(int), cols.astype(int)
 
-def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels):
+def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
     """
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
@@ -211,23 +252,44 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     total_records = len(satellite_coords)
     progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
+    # Debug: Validate time indices
+    if debug:
+        valid_time_range = (0, len(meteorology['times']) - 1)
+        invalid_time_indices = np.sum((time_indices < valid_time_range[0]) | (time_indices > valid_time_range[1]))
+        print(f"Debug: Total time indices: {len(time_indices)}")
+        print(f"Debug: Invalid time indices: {invalid_time_indices}")
+        print(f"Debug: First few time indices: {time_indices[:10]}")
+        if invalid_time_indices > 0:
+            raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
+
     # Precompute raster indices
     rows, cols = get_row_col(
         lon_array=satellite_coords[:, 0],
         lat_array=satellite_coords[:, 1],
         raster_crs=topography["crs"],
-        transform=topography["transform"]
+        transform=topography["transform"],
+        debug = debug
     )
+
+    # Debug: Validate raster indices
+    if debug:
+        out_of_bounds = (
+            (rows < 0) | (rows >= topography["elevation"].shape[0]) |
+            (cols < 0) | (cols >= topography["elevation"].shape[1])
+        )
+        print(f"Raster indices out of bounds: {np.sum(out_of_bounds)} / {len(rows)}")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
             zip(satellite_coords, time_indices, labels, rows, cols)):
         try:
-            # Interpolate meteorological meteorology
+            # Interpolate meteorological data
             ia, ja = interp.evaluate(lon, lat)
             i, j = np.round(ia).astype(int), np.round(ja).astype(int)
 
             # Skip invalid meteorological indices
             if not (0 <= i < meteorology['temp'].shape[1] and 0 <= j < meteorology['temp'].shape[2]):
+                if debug:
+                    print(f"Skipped invalid meteorological indices: i={i}, j={j}")
                 continue
 
             # Extract meteorological data
@@ -238,16 +300,21 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             wind_val = np.sqrt(
                 meteorology['wind_u'][time_idx, i, j] ** 2 + meteorology['wind_v'][time_idx, i, j] ** 2
             )
-            sw_val = meteorology['swdwn'][time_idx, i, j] - meteorology['swup'][time_idx, i, j] # NEED TO VALIDATE YOUR COMPUTATION
+            sw_val = meteorology['swdwn'][time_idx, i, j] - meteorology['swup'][time_idx, i, j]
 
             # Extract raster features
             if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
                 elevation_val = topography["elevation"][row, col]
                 slope_val = topography["slope"][row, col]
                 aspect_val = topography["aspect"][row, col]
-                fuelmod_val = vegetation["fuelmod"][row, col]
+                fuelmod_val = vegetation[row, col]
             else:
                 elevation_val, slope_val, aspect_val, fuelmod_val = np.nan, np.nan, np.nan, "Out of bounds"
+
+            # Debug: Check extracted values
+            if debug and idx % progress_interval == 0:
+                print(f"Record {idx + 1}: temp={temp_val}, rain={rain_val}, rhum={rhum_val}, "
+                      f"elevation={elevation_val}, slope={slope_val}, aspect={aspect_val}")
 
             # Append results
             data = {
@@ -272,15 +339,20 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 print(f"Processed {idx + 1} out of {total_records} records...")
 
         except Exception as e:
-            print(f"Error processing record {idx + 1}: {e}")
+            if debug:
+                print(f"Error processing record {idx + 1}: {e}")
 
     return pd.DataFrame(data_interp)
 
-def test_function(file_paths, subset_size, confidence_threshold):
+
+def test_function(file_paths, subset_size, confidence_threshold, debug):
     """
     Test the workflow with a subset of the data for debugging or validation.
 
     """
+    #subset_start = []
+    #subset_end = []
+    #subset_size = subset_end subset_start
     print(f"Running test function with subset size: {subset_size}")
 
     # Step 1: Load meteorology data
@@ -294,7 +366,6 @@ def test_function(file_paths, subset_size, confidence_threshold):
     vegetation = load_vegetation(file_paths)
 
     # Step 3: Load and filter fire detection data
-    print("Loading and filtering fire detection data...")
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
     lon_array = fire_detection_data['lon'][:subset_size]
     lat_array = fire_detection_data['lat'][:subset_size]
@@ -307,11 +378,11 @@ def test_function(file_paths, subset_size, confidence_threshold):
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
     # Step 5: Compute time indices
-    time_indices = compute_time_indices(dates_fire, meteorology['times'])
+    time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
     # Step 6: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
-    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels)
+    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
 
     # Step 6: Save and return results
     print("Saving test results...")
@@ -328,12 +399,13 @@ if __name__ == "__main__":
     subset_size = 10000
     confidence_threshold = 70
 
-    # Toggle testing mode
+    # Toggle testing mode and debug mode
     test = True  # Set to False to run the full workflow
+    debug = True # Set to False when the bugs are gone
 
     if test:
         print("Running the test function...")
-        test_data = test_function(file_paths, subset_size, confidence_threshold)
+        test_data = test_function(file_paths, subset_size, confidence_threshold, debug)
 
         if test_data is not None:
             print("Test run completed successfully. Displaying head of the DataFrame:")
@@ -363,11 +435,11 @@ if __name__ == "__main__":
         interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
         # Compute time indices
-        time_indices = compute_time_indices(dates_fire, meteorology['times'], validate=False)
+        time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
         # Perform interpolation
         satellite_coords = np.column_stack((lon_array, lat_array))
-        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels)
+        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
 
         # Save interpolated data
         interpolated_data.to_pickle('processed_data.pkl')
