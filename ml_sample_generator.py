@@ -346,7 +346,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     return pd.DataFrame(data_interp)
 
 
-def test_function(file_paths, subset_start=None, subset_end=None, min_fire_detections, confidence_threshold=70, debug):
+def test_function(file_paths, subset_start, subset_end, min_fire_detections, confidence_threshold, debug):
     """
     Test the workflow with a subset of the data for debugging or validation.
     Dynamically adjust subset indices to include enough fire detections (label=1).
@@ -428,7 +428,6 @@ if __name__ == "__main__":
     subset_end = None
     min_fire_detections = 20
     confidence_threshold = 70
-    debug = True
 
     # Toggle testing mode and debug mode
     test = True  # Set to False to run the full workflow
