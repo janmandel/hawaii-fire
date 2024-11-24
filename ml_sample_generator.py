@@ -143,8 +143,8 @@ def compute_time_indices(satellite_times, processed_times, debug):
     Ensure alignment between satellite and processed data timestamps.
 
     Args:
-        satellite_times (pd.Series): Satellite observation times.
-        processed_times (pd.Series): Times in the processed meteorology dataset.
+        satellite_times (pd.Series or pd.DatetimeIndex): Satellite observation times.
+        processed_times (pd.Series or pd.DatetimeIndex): Times in the processed meteorology dataset.
         debug (bool): If True, print debug information and validate time indices.
 
     Returns:
@@ -168,7 +168,7 @@ def compute_time_indices(satellite_times, processed_times, debug):
         print("Validating indices...")
         for i in range(len(indices)):
             idx = indices[i]
-            sat_time = satellite_times.iloc[i]
+            sat_time = satellite_times[i]  # Use direct indexing here
 
             # Check index validity
             if 0 <= idx < len(processed_times):
@@ -184,10 +184,11 @@ def compute_time_indices(satellite_times, processed_times, debug):
                 raise IndexError(f"Index {idx} out of bounds for processed data times.")
 
                 # Progress logging
-                if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
-                    print(f"Processed {idx + 1} out of {total_records} records...")
+                if (i + 1) % progress_interval == 0 or i + 1 == total_records:
+                    print(f"Processed {i + 1} out of {total_records} records...")
 
     return indices
+
 
 def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     """
@@ -345,15 +346,23 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     return pd.DataFrame(data_interp)
 
 
-def test_function(file_paths, subset_size, confidence_threshold, debug):
+def test_function(file_paths, subset_start=None, subset_end=None, min_fire_detections, confidence_threshold=70, debug):
     """
     Test the workflow with a subset of the data for debugging or validation.
+    Dynamically adjust subset indices to include enough fire detections (label=1).
 
+    Args:
+        file_paths (dict): Dictionary containing paths to required data files.
+        subset_start (int): Start index for the subset.
+        subset_end (int): End index for the subset.
+        min_fire_detections (int): Minimum number of fire detections (label=1) to include in the subset.
+        confidence_threshold (float): Minimum confidence for filtering fire detections.
+        debug (bool): Whether to enable debug logs.
+
+    Returns:
+        pd.DataFrame: Interpolated test data.
     """
-    #subset_start = []
-    #subset_end = []
-    #subset_size = subset_end subset_start
-    print(f"Running test function with subset size: {subset_size}")
+    print("Running test function...")
 
     # Step 1: Load meteorology data
     meteorology = load_meteorology(file_paths)
@@ -367,10 +376,29 @@ def test_function(file_paths, subset_size, confidence_threshold, debug):
 
     # Step 3: Load and filter fire detection data
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
-    lon_array = fire_detection_data['lon'][:subset_size]
-    lat_array = fire_detection_data['lat'][:subset_size]
-    dates_fire = fire_detection_data['dates_fire'][:subset_size] # Go from subset start to subset end to take a range anywhere we have :subsetsize
-    labels = fire_detection_data['labels'][:subset_size]
+
+    # Extract relevant data
+    lon_array = fire_detection_data['lon']
+    lat_array = fire_detection_data['lat']
+    dates_fire = fire_detection_data['dates_fire']
+    labels = fire_detection_data['labels']
+
+    # Ensure the subset includes a sufficient number of fire detections (label=1)
+    fire_indices = np.where(labels == 1)[0]  # Indices where label = 1
+    if len(fire_indices) < min_fire_detections:
+        raise ValueError(f"Not enough fire detections (label=1) to meet the minimum of {min_fire_detections}.")
+
+    # Adjust subset range if not provided
+    if subset_start is None or subset_end is None:
+        subset_start = max(0, fire_indices[0] - (min_fire_detections // 2))
+        subset_end = min(len(labels), subset_start + min_fire_detections * 2)
+
+    # Select subset
+    print(f"Selected range: start={subset_start}, end={subset_end}")
+    lon_array = lon_array[subset_start:subset_end]
+    lat_array = lat_array[subset_start:subset_end]
+    dates_fire = dates_fire[subset_start:subset_end]
+    labels = labels[subset_start:subset_end]
 
     # Step 4: Build interpolator
     print("Building interpolator...")
@@ -384,7 +412,7 @@ def test_function(file_paths, subset_size, confidence_threshold, debug):
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
 
-    # Step 6: Save and return results
+    # Step 7: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
@@ -395,9 +423,12 @@ if __name__ == "__main__":
     # Load and validate paths
     file_paths = get_file_paths()
 
-    # Define test parameters
-    subset_size = 10000
+    # Define parameters
+    subset_start = None  # Let the function compute based on fire detections
+    subset_end = None
+    min_fire_detections = 20
     confidence_threshold = 70
+    debug = True
 
     # Toggle testing mode and debug mode
     test = True  # Set to False to run the full workflow
@@ -405,7 +436,8 @@ if __name__ == "__main__":
 
     if test:
         print("Running the test function...")
-        test_data = test_function(file_paths, subset_size, confidence_threshold, debug)
+        test_data = test_function(file_paths, subset_start, subset_end, min_fire_detections, confidence_threshold,
+                                  debug)
 
         if test_data is not None:
             print("Test run completed successfully. Displaying head of the DataFrame:")
