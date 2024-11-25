@@ -71,24 +71,24 @@ def load_vegetation(file_paths):
     value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
     return np.vectorize(value_to_class.get)(fuelmod)
 
-def load_meteorology(file_paths):
+def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
     """
     Load meteorology data from a NetCDF file.
     """
     print("Loading meteorology data...")
     data = nc.Dataset(file_paths['process_path'])
     return {
-        "rain": data.variables['RAIN'][:, :, :],
-        "temp": data.variables['T2'][:, :, :],
-        "vapor": data.variables['Q2'][:, :, :],
-        "wind_u": data.variables['U10'][:, :, :],
-        "wind_v": data.variables['V10'][:, :, :],
-        "swdwn": data.variables['SWDOWN'][:, :, :],
-        "swup": data.variables['SWUPT'][:, :, :],
-        "press": data.variables['PSFC'][:, :, :],
+        "rain": data.variables['RAIN'][start_index:end_index, :, :],
+        "temp": data.variables['T2'][start_index:end_index, :, :],
+        "vapor": data.variables['Q2'][start_index:end_index, :, :],
+        "wind_u": data.variables['U10'][start_index:end_index, :, :],
+        "wind_v": data.variables['V10'][start_index:end_index, :, :],
+        "swdwn": data.variables['SWDOWN'][start_index:end_index, :, :],
+        "swup": data.variables['SWUPT'][start_index:end_index, :, :],
+        "press": data.variables['PSFC'][start_index:end_index, :, :],
         "lon_grid": data.variables['XLONG'][:, :],
         "lat_grid": data.variables['XLAT'][:, :],
-        "times": pd.to_datetime([t.strip() for t in data.variables['times'][:]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
+        "times": pd.to_datetime([t.strip() for t in data.variables['times'][start_index:end_index]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
     }
 
 def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
