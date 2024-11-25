@@ -16,5 +16,7 @@ confidence_threshold = 70
 fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
 lon_array = fire_detection_data['lon']
 lat_array = fire_detection_data['lat']
-raster_lon, raster_lat = transformer.transform(lon_array[0], lat_array[0])
+print(f"The shapes of the lon array, lat array : {lon_array.shape}, {lat_array.shape}")
+print("Calling transformer...")
+raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
 print(f"The tranform for the raster is: {transformer}" )
