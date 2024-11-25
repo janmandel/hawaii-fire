@@ -241,12 +241,6 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
     if debug:
         print(f"Debug: Row indices min/max: {rows.min()} / {rows.max()}")
         print(f"Debug: Column indices min/max: {cols.min()} / {cols.max()}")
-        raster_shape = (transform[0], transform[1])  # Rows, Columns of the raster
-        out_of_bounds = (
-                (rows < 0) | (rows >= raster_shape[0]) |
-                (cols < 0) | (cols >= raster_shape[1])
-        )
-        print(f"Debug: Out-of-bounds indices: {np.sum(out_of_bounds)} / {len(rows)}")
 
     return rows, cols
 
