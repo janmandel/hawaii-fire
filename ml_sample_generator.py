@@ -224,11 +224,18 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
 
     # Debug: Check reprojected coordinates
     if debug:
+        print(f"Debug: Given lon min/max: {lon_array.min()} / {lon_array.max()}")
+        print(f"Debug: Given lat min/max: {lat_array.min()} / {lat_array.max()}")
         print(f"Debug: Reprojected lon min/max: {raster_lon.min()} / {raster_lon.max()}")
         print(f"Debug: Reprojected lat min/max: {raster_lat.min()} / {raster_lat.max()}")
 
-    # Get row, col from rasterio.transform.rowcol
-    rows, cols = rowcol(transform, raster_lon, raster_lat)
+    # Calculate row and column indices using vectorized transformation
+    inv_transform = ~transform
+    cols, rows = inv_transform * (raster_lon, raster_lat)
+
+    # Round to nearest integer and convert to int
+    rows = np.round(rows).astype(int)
+    cols = np.round(cols).astype(int)
 
     # Debug: Check row/col indices
     if debug:
@@ -241,7 +248,7 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
         )
         print(f"Debug: Out-of-bounds indices: {np.sum(out_of_bounds)} / {len(rows)}")
 
-    return rows.astype(int), cols.astype(int)
+    return rows, cols
 
 def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
     """
@@ -400,6 +407,15 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
     dates_fire = dates_fire[subset_start:subset_end]
     labels = labels[subset_start:subset_end]
 
+    # Calculate and log statistics for the subset
+    selected_date_range = f"{dates_fire.min()} to {dates_fire.max()}"
+    label_counts = pd.Series(labels).value_counts()
+
+    print(f"Selected date range: {selected_date_range}")
+    print(f"Subset size: {len(labels)}")
+    print(f"Number of 'Fire' labels (1): {label_counts.get(1, 0)}")
+    print(f"Number of 'Non-Fire' labels (0): {label_counts.get(0, 0)}")
+
     # Step 4: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
@@ -434,7 +450,6 @@ if __name__ == "__main__":
     debug = True # Set to False when the bugs are gone
 
     if test:
-        print("Running the test function...")
         test_data = test_function(file_paths, subset_start, subset_end, min_fire_detections, confidence_threshold,
                                   debug)
 
