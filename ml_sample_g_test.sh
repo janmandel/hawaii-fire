@@ -9,6 +9,9 @@
 #SBATCH --output=logs/ml_sample_g_test%j.log         # Log output file (%j will include the job ID)
 #SBATCH --error=logs/ml_sample_g_test%j.err          # Error output file (%j will include the job ID)
 
+# Active the conda env
+conda activate hi-fire
+
 # Run the Python script
 PYTHONUNBUFFERED=1 python ml_sample_generator.py > logs/ml_sample_generator_test.log  
 
