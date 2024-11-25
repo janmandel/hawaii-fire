@@ -216,16 +216,23 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     """
     print('Computing row and column indices for topography and vegetation files...')
 
-    if debug:
-        print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
-        print(f"lon_array: {lon_array}")
-        print(f"lat_array: {lat_array}")
-        print(f"NaNs in lon_array: {np.isnan(lon_array).any()}, NaNs in lat_array: {np.isnan(lat_array).any()}")
-        print(f"lon_array min/max: {lon_array.min()} / {lon_array.max()}")
-        print(f"lat_array min/max: {lat_array.min()} / {lat_array.max()}")
-        print("Starting coordinate transformation...")  # Before transformer is built
     # Reproject lon/lat arrays to the raster's CRS using pyproj
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+
+    if debug:
+        print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
+        print(f"Debug: lon_array: {lon_array}")
+        print(f"Debug: lat_array: {lat_array}")
+        print(f"Debug: NaNs in lon_array: {np.isnan(lon_array).any()}, NaNs in lat_array: {np.isnan(lat_array).any()}")
+        print(f"Debug: lon_array min/max: {lon_array.min()} / {lon_array.max()}")
+        print(f"Debug: lat_array min/max: {lat_array.min()} / {lat_array.max()}")
+        print("Starting coordinate transformation...")  # Before transformer is built
+        try:
+            raster_lon, raster_lat = transformer.transform(lon_array[0], lat_array[0])
+            print(f"Debug: Single-point transformation successful: {raster_lon}, {raster_lat}")
+        except Exception as e:
+            print(f"Debug: Error during single-point transformation: {e}")
+
     print("Transforming coordinates to raster CRS...")  # Before transformation
     raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
     if debug:
@@ -405,7 +412,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     return pd.DataFrame(data_interp)
 
 
-def test_function(file_paths, subset_start, subset_end, min_fire_detections, confidence_threshold, debug):
+def test_function(file_paths, subset_start, subset_end, min_fire_detections, max_subset_size, confidence_threshold, debug):
     """
     Test the workflow with a subset of the data for debugging or validation.
     Dynamically adjust subset indices to include enough fire detections (label=1).
@@ -514,6 +521,7 @@ if __name__ == "__main__":
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
     min_fire_detections = 1
+    max_subset_size = 100  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
@@ -521,7 +529,7 @@ if __name__ == "__main__":
     debug = True # Set to False when the bugs are gone
 
     if test:
-        test_data = test_function(file_paths, subset_start, subset_end, min_fire_detections, confidence_threshold,
+        test_data = test_function(file_paths, subset_start, subset_end, min_fire_detections, max_subset_size, confidence_threshold,
                                   debug)
 
         if test_data is not None:
