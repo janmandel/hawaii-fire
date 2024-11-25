@@ -52,6 +52,7 @@ def load_topography(file_paths):
     with rasterio.open(file_paths['elevation_path']) as elev, \
          rasterio.open(file_paths['slope_path']) as slope, \
          rasterio.open(file_paths['aspect_path']) as aspect:
+        print(f"Trying to open {file_paths['elevation_path']} as {elev}")
         return {
             "elevation": elev.read(1),
             "slope": slope.read(1),
