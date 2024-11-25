@@ -218,6 +218,11 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
 
     if debug:
         print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
+        print(f"lon_array: {lon_array}")
+        print(f"lat_array: {lat_array}")
+        print(f"NaNs in lon_array: {np.isnan(lon_array).any()}, NaNs in lat_array: {np.isnan(lat_array).any()}")
+        print(f"lon_array min/max: {lon_array.min()} / {lon_array.max()}")
+        print(f"lat_array min/max: {lat_array.min()} / {lat_array.max()}")
         print("Starting coordinate transformation...")  # Before transformer is built
     # Reproject lon/lat arrays to the raster's CRS using pyproj
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
