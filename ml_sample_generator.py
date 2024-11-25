@@ -9,7 +9,7 @@ import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import rasterio
-from rasterio.transform import rowcol
+from rasterio.transform import rowcol, xy
 from pyproj import CRS, Transformer
 from dbfread import DBF
 from datetime import datetime, timedelta
@@ -201,33 +201,24 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     return (e_pa / es_pa) * 100
 
 
-def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
+def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug):
     """
-    Get the row and column indices in a raster for arrays of longitudes and latitudes.
-    To be used for retrieval of values from GeoTIFFs at longitude and latitude.
+    Optimized function to compute row and column indices for arrays of longitudes and latitudes.
 
     Args:
         lon_array (np.ndarray): Array of longitudes in WGS84.
         lat_array (np.ndarray): Array of latitudes in WGS84.
-        raster_crs (str): CRS of the raster (e.g., "EPSG:5070" for Albers Equal Area).
+        raster_crs (str): CRS of the raster (e.g., "EPSG:5070").
         transform (Affine): Rasterio affine transform of the raster.
-        debug (bool): If True, prints debug information.
 
     Returns:
         tuple: Arrays of row and column indices in the raster.
     """
     print('Computing row and column indices for topography and vegetation files...')
 
-    # Reproject lon, lat arrays to the raster's CRS
+    # Reproject lon/lat arrays to the raster's CRS using pyproj
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
     raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
-
-    # Debug: Check reprojected coordinates
-    if debug:
-        print(f"Debug: Given lon min/max: {lon_array.min()} / {lon_array.max()}")
-        print(f"Debug: Given lat min/max: {lat_array.min()} / {lat_array.max()}")
-        print(f"Debug: Reprojected lon min/max: {raster_lon.min()} / {raster_lon.max()}")
-        print(f"Debug: Reprojected lat min/max: {raster_lat.min()} / {raster_lat.max()}")
 
     # Calculate row and column indices using vectorized transformation
     inv_transform = ~transform
@@ -237,12 +228,59 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, debug):
     rows = np.round(rows).astype(int)
     cols = np.round(cols).astype(int)
 
-    # Debug: Check row/col indices
     if debug:
-        print(f"Debug: Row indices min/max: {rows.min()} / {rows.max()}")
-        print(f"Debug: Column indices min/max: {cols.min()} / {cols.max()}")
+        # Debugging: Check bounds, reprojected coordinates and other metrics
+        print(f"Debug: WGS84 lon min/max (pre-mask): {lon_array.min()} / {lon_array.max()}")
+        print(f"Debug: WGS84 lat min/max (pre-mask): {lat_array.min()} / {lat_array.max()}")
+        print(f"Debug: Reprojected lon min/max (pre-mask): {raster_lon.min()} / {raster_lon.max()}")
+        print(f"Debug: Reprojected lat min/max (pre-mask): {raster_lat.min()} / {raster_lat.max()}")
+        print(f"Debug: Rows min/max(pre-mask): {rows.min()}, {rows.max()}")
+        print(f"Debug: Cols min/max(pre-mask): {cols.min()}, {cols.max()}")
+        print(f"Debug: The shape of rows, cols: {rows.shape, cols.shape}")
 
-    return rows, cols
+    print("Truncating rows, cols, lon_array, and lat_array based on valid raster array inputs...")
+
+    # Create a mask to filter valid row/col indices
+    rowcol_mask = (
+            (rows >= 0) & (rows < raster_shape[0]) &
+            (cols >= 0) & (cols < raster_shape[1])
+    )
+
+    # Calculate bounds in raster CRS
+    raster_x_min, raster_y_min = transform * (0, raster_shape[0])
+    raster_x_max, raster_y_max = transform * (raster_shape[1], 0)
+
+    # Reproject bounds to WGS84
+    transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
+
+    lon_min, lat_min = transformer.transform(raster_x_min, raster_y_min)
+    lon_max, lat_max = transformer.transform(raster_x_max, raster_y_max)
+
+    # Create a valid mask based on coordinate bounds via the raster boundaries
+    coord_mask = (
+            (lon_array >= lon_min) & (lon_array <= lon_max) &
+            (lat_array >= lat_min) & (lat_array <= lat_max)
+    )
+
+    # Combine the masks
+    valid_mask = rowcol_mask & coord_mask
+
+    # Apply the mask and filter spatial data accordingly
+    rows_valid = rows[valid_mask]
+    cols_valid = cols[valid_mask]
+    lon_array_valid = lon_array[valid_mask]
+    lat_array_valid = lat_array[valid_mask]
+
+    if debug:
+        print(f"Raster bounds in WGS84: lon_min={lon_min}, lon_max={lon_max}, lat_min={lat_min}, lat_max={lat_max}")
+        print(f"Debug: WGS84 lon min/max (post-mask): {lon_array_valid.min()} / {lon_array_valid.max()}")
+        print(f"Debug: WGS84 lat min/max (post-mask): {lat_array_valid.min()} / {lat_array_valid.max()}")
+        print(f"Debug: Reprojected lon min/max (post-mask): {raster_x_min} / {raster_x_max}")
+        print(f"Debug: Reprojected lat min/max (post-mask): {raster_y_min} / {raster_y_max}")
+        print(f"Debug: Rows min/max(post-mask): {rows_valid.min()}, {rows_valid.max()}")
+        print(f"Debug: Cols min/max(post-mask): {cols_valid.min()}, {cols_valid.max()}")
+
+    return rows_valid, cols_valid, lon_array_valid, lat_array_valid, valid_mask
 
 def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
     """
@@ -266,14 +304,19 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         if invalid_time_indices > 0:
             raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
 
-    # Precompute raster indices
-    rows, cols = get_row_col(
+    # Precompute raster indices and apply mask based off of extent of raster data
+    rows, cols, lons, lats, spatial_mask = get_row_col(
         lon_array=satellite_coords[:, 0],
         lat_array=satellite_coords[:, 1],
         raster_crs=topography["crs"],
         transform=topography["transform"],
+        raster_shape = topography["elevation"].shape
         debug = debug
     )
+
+    # Apply the spatial mask to time_indices and labels
+    time_indices = time_indices[spatial_mask]
+    labels = labels[spatial_mask]
 
     # Debug: Validate raster indices
     if debug:
@@ -284,7 +327,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         print(f"Raster indices out of bounds: {np.sum(out_of_bounds)} / {len(rows)}")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
-            zip(satellite_coords, time_indices, labels, rows, cols)):
+            zip((lons, lats), time_indices, labels, rows, cols)):
         try:
             # Interpolate meteorological data
             ia, ja = interp.evaluate(lon, lat)
