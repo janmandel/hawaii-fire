@@ -398,9 +398,14 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
         # Select fire indices
         selected_fire_indices = np.random.choice(fire_indices, min_fire_detections, replace=False)
 
-        # Select non-fire indices
-        additional_non_fire_count = max(0, 1000 - min_fire_detections)  # Default total size of 1000
-        selected_non_fire_indices = np.random.choice(non_fire_indices, additional_non_fire_count, replace=False)
+        # Limit total subset size (e.g., max 100,000 points)
+        max_subset_size = 100000
+        remaining_slots = max_subset_size - len(selected_fire_indices)
+
+        # Select non-fire indices to fill the remaining slots
+        selected_non_fire_indices = np.random.choice(
+            non_fire_indices, min(remaining_slots, len(non_fire_indices)), replace=False
+        )
 
         # Combine and sort indices
         selected_indices = np.sort(np.concatenate([selected_fire_indices, selected_non_fire_indices]))
@@ -422,19 +427,19 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
     print(f"Number of 'Fire' labels (1): {label_counts.get(1, 0)}")
     print(f"Number of 'Non-Fire' labels (0): {label_counts.get(0, 0)}")
 
-    # Step 4: Build interpolator
+    # Step 5: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 5: Compute time indices
+    # Step 6: Compute time indices
     time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
-    # Step 6: Perform interpolation
+    # Step 7: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
 
-    # Step 7: Save and return results
+    # Step 8: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
