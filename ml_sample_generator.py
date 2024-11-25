@@ -299,8 +299,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         print(f"Debug: Total time indices: {len(time_indices)}")
         print(f"Debug: Invalid time indices: {invalid_time_indices}")
         print(f"Debug: First few time indices: {time_indices[:10]}")
-        print(f"Debug: The first timestamp is: {time_indices[0]}")
-        print(f"Debug: The final timestamp is: {time_indices[-1]}")
+        print(f"Debug: The first timestamp is: {meteorology['times'][time_indices[0]]}")
+        print(f"Debug: The final timestamp is: {meteorology['times'][time_indices[-1]]}")
         if invalid_time_indices > 0:
             raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
 
@@ -457,7 +457,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
             raise ValueError("Not enough fire detections in the data to satisfy the minimum requirement.")
 
         # Extend the range to include additional non-fire detections up to `max_subset_size`
-        max_subset_size = 100000  # Define maximum subset size
+        max_subset_size = 100  # Define maximum subset size
         subset_end = min(subset_start + max_subset_size, total_points)
 
     # Select the continuous subset
@@ -500,7 +500,7 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 20
+    min_fire_detections = 1
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
