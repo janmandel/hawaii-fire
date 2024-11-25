@@ -261,6 +261,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         print(f"Debug: Total time indices: {len(time_indices)}")
         print(f"Debug: Invalid time indices: {invalid_time_indices}")
         print(f"Debug: First few time indices: {time_indices[:10]}")
+        print(f"Debug: The first timestamp is: {time_indices[0]}")
+        print(f"Debug: The final timestamp is: {time_indices[-1]}")
         if invalid_time_indices > 0:
             raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
 
@@ -384,15 +386,25 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
-    # Ensure the subset includes a sufficient number of fire detections (label=1)
-    fire_indices = np.where(labels == 1)[0]  # Indices where label = 1
-    if len(fire_indices) < min_fire_detections:
-        raise ValueError(f"Not enough fire detections (label=1) to meet the minimum of {min_fire_detections}.")
-
-    # Adjust subset range if not provided
+    # Step 4: Define subset with sufficient fire and non-fire labels
     if subset_start is None or subset_end is None:
-        subset_start = max(0, fire_indices[0] - (min_fire_detections // 2))
-        subset_end = min(len(labels), subset_start + min_fire_detections * 2)
+        print("Selecting a subset with sufficient fire detections...")
+        fire_indices = np.where(labels == 1)[0]  # Indices of fire labels
+        non_fire_indices = np.where(labels == 0)[0]  # Indices of non-fire labels
+
+        if len(fire_indices) < min_fire_detections:
+            raise ValueError("Not enough fire detections in the data to satisfy the minimum requirement.")
+
+        # Select fire indices
+        selected_fire_indices = np.random.choice(fire_indices, min_fire_detections, replace=False)
+
+        # Select non-fire indices
+        additional_non_fire_count = max(0, 1000 - min_fire_detections)  # Default total size of 1000
+        selected_non_fire_indices = np.random.choice(non_fire_indices, additional_non_fire_count, replace=False)
+
+        # Combine and sort indices
+        selected_indices = np.sort(np.concatenate([selected_fire_indices, selected_non_fire_indices]))
+        subset_start, subset_end = selected_indices[0], selected_indices[-1] + 1  # Adjust range
 
     # Select subset
     print(f"Selected range: start={subset_start}, end={subset_end}")
