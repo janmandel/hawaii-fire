@@ -216,13 +216,21 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     """
     print('Computing row and column indices for topography and vegetation files...')
 
+    if debug:
+        print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
+        print("Starting coordinate transformation...")  # Before transformer is built
     # Reproject lon/lat arrays to the raster's CRS using pyproj
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+    print("Transforming coordinates to raster CRS...")  # Before transformation
     raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
+    if debug:
+        print("Coordinate transformation completed.")  # After transformation
+        print("Starting affine transformation for row/col computation...")  # Before affine transformation
 
     # Calculate row and column indices using vectorized transformation
     inv_transform = ~transform
     cols, rows = inv_transform * (raster_lon, raster_lat)
+    print(f"The affine transformation is complete and the row,col values have been extracted...")
 
     # Round to nearest integer and convert to int
     rows = np.round(rows).astype(int)
