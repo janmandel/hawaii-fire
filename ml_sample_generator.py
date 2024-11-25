@@ -386,46 +386,50 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, con
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
-    # Step 4: Define subset with sufficient fire and non-fire labels
+    # Step 4: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
-        print("Selecting a subset with sufficient fire detections...")
-        fire_indices = np.where(labels == 1)[0]  # Indices of fire labels
-        non_fire_indices = np.where(labels == 0)[0]  # Indices of non-fire labels
+        print("Selecting a continuous subset with sufficient fire detections...")
 
-        if len(fire_indices) < min_fire_detections:
+        # Sort the data by timestamps
+        sorted_indices = np.argsort(dates_fire)
+        lon_array = lon_array[sorted_indices]
+        lat_array = lat_array[sorted_indices]
+        dates_fire = dates_fire[sorted_indices]
+        labels = labels[sorted_indices]
+
+        # Find a continuous range with enough fire detections
+        total_points = len(dates_fire)
+        subset_start = 0
+        subset_end = None
+
+        for i in range(total_points - min_fire_detections):
+            # Count fire detections in the current range
+            fire_count = np.sum(labels[i:i + min_fire_detections] == 1)
+            if fire_count >= min_fire_detections:
+                subset_start = i
+                subset_end = i + min_fire_detections
+                break
+
+        if subset_end is None:
             raise ValueError("Not enough fire detections in the data to satisfy the minimum requirement.")
 
-        # Select fire indices
-        selected_fire_indices = np.random.choice(fire_indices, min_fire_detections, replace=False)
+        # Extend the range to include additional non-fire detections up to `max_subset_size`
+        max_subset_size = 100000  # Define maximum subset size
+        subset_end = min(subset_start + max_subset_size, total_points)
 
-        # Limit total subset size (e.g., max 100,000 points)
-        max_subset_size = 100000
-        remaining_slots = max_subset_size - len(selected_fire_indices)
-
-        # Select non-fire indices to fill the remaining slots
-        selected_non_fire_indices = np.random.choice(
-            non_fire_indices, min(remaining_slots, len(non_fire_indices)), replace=False
-        )
-
-        # Combine and sort indices
-        selected_indices = np.sort(np.concatenate([selected_fire_indices, selected_non_fire_indices]))
-        subset_start, subset_end = selected_indices[0], selected_indices[-1] + 1  # Adjust range
-
-    # Select subset
-    print(f"Selected range: start={subset_start}, end={subset_end}")
+    # Select the continuous subset
     lon_array = lon_array[subset_start:subset_end]
     lat_array = lat_array[subset_start:subset_end]
     dates_fire = dates_fire[subset_start:subset_end]
     labels = labels[subset_start:subset_end]
 
-    # Calculate and log statistics for the subset
+    # Log subset statistics
     selected_date_range = f"{dates_fire.min()} to {dates_fire.max()}"
-    label_counts = pd.Series(labels).value_counts()
-
+    print(f"Selected range: start={subset_start}, end={subset_end}")
     print(f"Selected date range: {selected_date_range}")
-    print(f"Subset size: {len(labels)}")
-    print(f"Number of 'Fire' labels (1): {label_counts.get(1, 0)}")
-    print(f"Number of 'Non-Fire' labels (0): {label_counts.get(0, 0)}")
+    print(f"Subset size: {subset_end - subset_start}")
+    print(f"Number of 'Fire' labels (1): {np.sum(labels == 1)}")
+    print(f"Number of 'Non-Fire' labels (0): {np.sum(labels == 0)}")
 
     # Step 5: Build interpolator
     print("Building interpolator...")
