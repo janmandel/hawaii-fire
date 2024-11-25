@@ -220,6 +220,9 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
 
     if debug:
+        print(f"Debug: The raster CRS is: {raster_crs}")
+        print(f"Debug: The raster shape is: {raster_shape}")
+        print(f"Debug: The transform for the raster is: {transform}")
         print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
         print(f"Debug: lon_array: {lon_array}")
         print(f"Debug: lat_array: {lat_array}")
