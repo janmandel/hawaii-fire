@@ -310,7 +310,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         lat_array=satellite_coords[:, 1],
         raster_crs=topography["crs"],
         transform=topography["transform"],
-        raster_shape = topography["elevation"].shape
+        raster_shape = topography["elevation"].shape,
         debug = debug
     )
 
