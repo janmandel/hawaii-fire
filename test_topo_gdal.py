@@ -45,13 +45,12 @@ fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confiden
 # The CRS for the fire detection data is WGS84
 lon_array = fire_detection_data['lon']
 lat_array = fire_detection_data['lat']
+print(f"Number of NA's in lon: {np.isnan(lon_array).sum()}")
+print(f"Number of NA's in lat: {np.isnan(lat_array).sum()}")
 print(f"The types of the lon_array, lat_array: {type(lon_array)}, {type(lat_array)}")
 print(f"The min/max of the lon_array, lat_array: {lon_array.min()}/{lon_array.max()}, {lat_array.min()}/{lat_array.max()}")
 print(f"The shapes of the lon array, lat array : {lon_array.shape}, {lat_array.shape}")
-
-# Get the raster bounds
-left, bottom, right, top = bounds
-
+print(f"The tranform for the raster is: {transform}" )
 # Reproject lon/lat to the raster CRS and filter
 filtered_lon = []
 filtered_lat = []
