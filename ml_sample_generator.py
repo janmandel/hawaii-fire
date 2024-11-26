@@ -13,7 +13,6 @@ from rasterio.transform import rowcol, xy
 from pyproj import CRS, Transformer
 from dbfread import DBF
 from datetime import datetime, timedelta
-import psutil
 import time
 import random
 
