@@ -231,7 +231,7 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
         print(f"Debug: lat_array min/max: {lat_array.min()} / {lat_array.max()}")
         print("Starting coordinate transformation...")  # Before transformer is built
         try:
-            raster_lon, raster_lat = transformer.transform(lon_array[0], lat_array[0])
+            raster_lon, raster_lat = transformer.transform(lon_array[0], lat_array[0]) #transformer.transform gets stalled why?
             print(f"Debug: Single-point transformation successful: {raster_lon}, {raster_lat}")
         except Exception as e:
             print(f"Debug: Error during single-point transformation: {e}")
