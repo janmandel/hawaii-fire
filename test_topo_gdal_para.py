@@ -7,6 +7,7 @@ from ml_sample_generator import load_topography, get_file_paths, load_fire_detec
 file_paths = get_file_paths()
 topography = load_topography(file_paths)
 raster_crs = topography["crs"]
+print(f"The topography CRS is {raster_crs}")
 
 # Parse the CRS to extract the standard parallels
 raster_srs = osr.SpatialReference()
@@ -53,7 +54,9 @@ source_srs.ImportFromEPSG(4326)  # WGS84
 transform = osr.CoordinateTransformation(source_srs, raster_srs)
 
 # Transform the filtered coordinates
-transformed_coords = [
-    transform.TransformPoint(lon, lat)[:2] for lon, lat in zip(filtered_lon_array, filtered_lat_array)
-]
-print(f"Transformed coordinates (example): {transformed_coords[:5]}")
+#transformed_coords = [
+#    transform.TransformPoint(lon, lat)[:2] for lon, lat in zip(filtered_lon_array, filtered_lat_array)
+#]
+#print(f"Transformed coordinates (example): {transformed_coords[:5]}")
+transformed_coord = transform.TransformPoint(filtered_lon_array[0], filtered_lat_array[0])[:2]
+print(f"Given lon: {filtered_lon_array[0]}, lat: {filtered_lat_array[0]} we get transfomed coordinates : {transformed_coord}")

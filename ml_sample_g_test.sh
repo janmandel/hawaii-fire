@@ -10,6 +10,7 @@
 #SBATCH --error=logs/ml_sample_g_test%j.err          # Error output file (%j will include the job ID)
 
 # Active the conda env
+eval "$(conda shell.bash hook)"
 conda activate hi-fire
 
 # Run the Python script
