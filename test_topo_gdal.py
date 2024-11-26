@@ -1,5 +1,6 @@
 from osgeo import gdal, osr
 import rasterio
+import numpy as np
 from ml_sample_generator import load_topography, get_file_paths, load_fire_detection, load_meteorology
 
 # Reproject lon/lat arrays to the raster's CRS using gdal
