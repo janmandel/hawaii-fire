@@ -111,8 +111,10 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     return rows_valid, cols_valid, lon_array_valid, lat_array_valid, valid_mask
 
 # Paths to the tif file
-base_dir = osp.join('/', 'home', 'spearsty', 'p', 'data')
+home = osp.expanduser("~")
+base_dir = osp.abspath(osp.join(osp.expanduser("~"), 'p', 'data'))
 elevation_path = osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Elev_220_HI', 'LH20_Elev_220.tif')
+print('elevation_path =',elevation_path)
 
 # Load the elevation data
 with rasterio.open(elevation_path) as elevation_dataset:
