@@ -231,7 +231,9 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     cols = row_col_data['cols']
     valid_mask = row_col_data['valid_mask']
 
-    # Apply the spatial mask to fire detection data
+    # Apply the spatial mask
+    rows = rows[valid_mask]
+    cols = cols[valid_mask]
     satellite_coords = satellite_coords[valid_mask]
     time_indices = time_indices[valid_mask]
     labels = labels[valid_mask]
@@ -240,6 +242,9 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     if debug:
         print(f"After applying spatial mask:")
         print(f"Satellite coordinates shape: {satellite_coords.shape}")
+        print(f"Rows shape: {rows.shape}")
+        print(f"Cols shape: {cols.shape}")
+        print(f"Time indices shape: {time_indices.shape}")
         print(f"Labels shape: {labels.shape}")
 
     # Validate and filter time indices separately
