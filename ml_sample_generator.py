@@ -29,6 +29,7 @@ def get_file_paths():
         "aspect_path": osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Asp_220_HI', 'LH20_Asp_220.tif'),
         "fuelmod_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif'),
         "fuelvat_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf'),
+        "row_col_path": osp.join(base_dir, 'feat', 'row_col_mask.nc'),
         "process_path": osp.join(base_dir, 'feat', 'weather', 'processed_output.nc'),
         "fire_path": osp.join(base_dir, 'targ', 'Hawaii-all_2024-10-29_16:36:26', 'ml_data')
     }
@@ -51,7 +52,7 @@ def load_topography(file_paths):
     with rasterio.open(file_paths['elevation_path']) as elev, \
          rasterio.open(file_paths['slope_path']) as slope, \
          rasterio.open(file_paths['aspect_path']) as aspect:
-        print(f"Trying to open {file_paths['elevation_path']} as {elev}")
+        #print(f"Trying to open {file_paths['elevation_path']} as {elev}")
         return {
             "elevation": elev.read(1),
             "slope": slope.read(1),
@@ -69,6 +70,25 @@ def load_vegetation(file_paths):
     vat_df = pd.DataFrame(iter(DBF(file_paths['fuelvat_path']))).sort_values(by='VALUE').reset_index(drop=True)
     value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
     return np.vectorize(value_to_class.get)(fuelmod)
+
+def load_row_col_mask(file_paths):
+    """
+    Load pre-computed rows, cols, and valid_mask from a NetCDF file.
+
+    Args:
+        nc_file_path (str): Path to the NetCDF file.
+
+    Returns:
+        dict: A dictionary containing rows, cols, and valid_mask.
+    """
+    print(f"Loading pre-computed rows, cols, and mask from {file_paths['row_col_path']}...")
+    with nc.Dataset(file_paths['row_col_path']) as nc_file:
+        rows = nc_file.variables['rows'][:]
+        cols = nc_file.variables['cols'][:]
+        valid_mask = nc_file.variables['valid_mask'][:].astype(bool)  # Convert to boolean array
+
+    print(f"Loaded data: rows({rows.shape}), cols({cols.shape}), valid_mask({valid_mask.shape})")
+    return {"rows": rows, "cols": cols, "valid_mask": valid_mask}
 
 def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
     """
@@ -126,7 +146,7 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
     dates_fire_actual = basetime + pd.to_timedelta(time_in_days, unit='D')
     dates_fire = dates_fire_actual.floor("h")  # Round to nearest hour
 
-    print(f"Loaded {len(X)} data points, filtered down to {len(X_filtered)} based on confidence and labels.")
+    print(f"Loaded {len(X)} data points, filtered down to {len(X_filtered)} based on confidence of labels and time.")
 
     return {
         "lon": lon_array,
@@ -200,120 +220,21 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
     return (e_pa / es_pa) * 100
 
-
-def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug):
-    """
-    Optimized function to compute row and column indices for arrays of longitudes and latitudes.
-
-    Args:
-        lon_array (np.ndarray): Array of longitudes in WGS84.
-        lat_array (np.ndarray): Array of latitudes in WGS84.
-        raster_crs (str): CRS of the raster (e.g., "EPSG:5070").
-        transform (Affine): Rasterio affine transform of the raster.
-
-    Returns:
-        tuple: Arrays of row and column indices in the raster.
-    """
-    print('Computing row and column indices for topography and vegetation files...')
-
-    # Reproject lon/lat arrays to the raster's CRS using pyproj
-    transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
-
-    if debug:
-        print(f"Debug: The raster CRS is: {raster_crs}")
-        print(f"Debug: The raster shape is: {raster_shape}")
-        print(f"Debug: The transform for the raster is: {transform}")
-        print(f"Debug: lon_array shape: {lon_array.shape}, lat_array shape: {lat_array.shape}")
-        print(f"Debug: lon_array: {lon_array}")
-        print(f"Debug: lat_array: {lat_array}")
-        print(f"Debug: NaNs in lon_array: {np.isnan(lon_array).any()}, NaNs in lat_array: {np.isnan(lat_array).any()}")
-        print(f"Debug: lon_array min/max: {lon_array.min()} / {lon_array.max()}")
-        print(f"Debug: lat_array min/max: {lat_array.min()} / {lat_array.max()}")
-        print("Starting coordinate transformation...")  # Before transformer is built
-        try:
-            raster_lon, raster_lat = transformer.transform(lon_array[0], lat_array[0]) #transformer.transform gets stalled why?
-            print(f"Debug: Single-point transformation successful: {raster_lon}, {raster_lat}")
-        except Exception as e:
-            print(f"Debug: Error during single-point transformation: {e}")
-
-    print("Transforming coordinates to raster CRS...")  # Before transformation
-    raster_lon, raster_lat = transformer.transform(lon_array, lat_array)
-    if debug:
-        print("Coordinate transformation completed.")  # After transformation
-        print("Starting affine transformation for row/col computation...")  # Before affine transformation
-
-    # Calculate row and column indices using vectorized transformation
-    inv_transform = ~transform
-    cols, rows = inv_transform * (raster_lon, raster_lat)
-    print(f"The affine transformation is complete and the row,col values have been extracted...")
-
-    # Round to nearest integer and convert to int
-    rows = np.round(rows).astype(int)
-    cols = np.round(cols).astype(int)
-
-    if debug:
-        # Debugging: Check bounds, reprojected coordinates and other metrics
-        print(f"Debug: WGS84 lon min/max (pre-mask): {lon_array.min()} / {lon_array.max()}")
-        print(f"Debug: WGS84 lat min/max (pre-mask): {lat_array.min()} / {lat_array.max()}")
-        print(f"Debug: Reprojected lon min/max (pre-mask): {raster_lon.min()} / {raster_lon.max()}")
-        print(f"Debug: Reprojected lat min/max (pre-mask): {raster_lat.min()} / {raster_lat.max()}")
-        print(f"Debug: Rows min/max(pre-mask): {rows.min()}, {rows.max()}")
-        print(f"Debug: Cols min/max(pre-mask): {cols.min()}, {cols.max()}")
-        print(f"Debug: The shape of rows, cols: {rows.shape, cols.shape}")
-
-    print("Truncating rows, cols, lon_array, and lat_array based on valid raster array inputs...")
-
-    # Create a mask to filter valid row/col indices
-    rowcol_mask = (
-            (rows >= 0) & (rows < raster_shape[0]) &
-            (cols >= 0) & (cols < raster_shape[1])
-    )
-
-    # Calculate bounds in raster CRS
-    raster_x_min, raster_y_min = transform * (0, raster_shape[0])
-    raster_x_max, raster_y_max = transform * (raster_shape[1], 0)
-
-    # Reproject bounds to WGS84
-    transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
-
-    lon_min, lat_min = transformer.transform(raster_x_min, raster_y_min)
-    lon_max, lat_max = transformer.transform(raster_x_max, raster_y_max)
-
-    # Create a valid mask based on coordinate bounds via the raster boundaries
-    coord_mask = (
-            (lon_array >= lon_min) & (lon_array <= lon_max) &
-            (lat_array >= lat_min) & (lat_array <= lat_max)
-    )
-
-    # Combine the masks
-    valid_mask = rowcol_mask & coord_mask
-
-    # Apply the mask and filter spatial data accordingly
-    rows_valid = rows[valid_mask]
-    cols_valid = cols[valid_mask]
-    lon_array_valid = lon_array[valid_mask]
-    lat_array_valid = lat_array[valid_mask]
-
-    if debug:
-        print(f"Raster bounds in WGS84: lon_min={lon_min}, lon_max={lon_max}, lat_min={lat_min}, lat_max={lat_max}")
-        print(f"Debug: WGS84 lon min/max (post-mask): {lon_array_valid.min()} / {lon_array_valid.max()}")
-        print(f"Debug: WGS84 lat min/max (post-mask): {lat_array_valid.min()} / {lat_array_valid.max()}")
-        print(f"Debug: Reprojected lon min/max (post-mask): {raster_x_min} / {raster_x_max}")
-        print(f"Debug: Reprojected lat min/max (post-mask): {raster_y_min} / {raster_y_max}")
-        print(f"Debug: Rows min/max(post-mask): {rows_valid.min()}, {rows_valid.max()}")
-        print(f"Debug: Cols min/max(post-mask): {cols_valid.min()}, {cols_valid.max()}")
-
-    return rows_valid, cols_valid, lon_array_valid, lat_array_valid, valid_mask
-
-def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
+def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, row_col_data, debug):
     """
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
     """
-    print('Entering the interpolation loop...')
-    data_interp = []
-    total_records = len(satellite_coords)
-    progress_interval = max(total_records // 10, 1)  # Log progress every 10%
+
+    # Precomputed raster indices and apply mask based off of extent of raster data
+    rows = row_col_data['rows']
+    cols = row_col_data['cols']
+    valid_mask = row_col_data['valid_mask']
+
+    # Apply the spatial mask to fire detection data
+    satellite_coords = satellite_coords[valid_mask]
+    time_indices = time_indices[valid_mask]
+    labels = labels[valid_mask]
 
     # Debug: Validate time indices
     if debug:
@@ -327,19 +248,9 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         if invalid_time_indices > 0:
             raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
 
-    # Precompute raster indices and apply mask based off of extent of raster data
-    rows, cols, lons, lats, spatial_mask = get_row_col(
-        lon_array=satellite_coords[:, 0],
-        lat_array=satellite_coords[:, 1],
-        raster_crs=topography["crs"],
-        transform=topography["transform"],
-        raster_shape = topography["elevation"].shape,
-        debug = debug
-    )
-
-    # Apply the spatial mask to time_indices and labels
-    time_indices = time_indices[spatial_mask]
-    labels = labels[spatial_mask]
+    data_interp = []
+    total_records = len(satellite_coords)
+    progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
     # Debug: Validate raster indices
     if debug:
@@ -348,6 +259,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             (cols < 0) | (cols >= topography["elevation"].shape[1])
         )
         print(f"Raster indices out of bounds: {np.sum(out_of_bounds)} / {len(rows)}")
+
+    print("Entering the interpolation loop...")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
             zip((lons, lats), time_indices, labels, rows, cols)):
@@ -439,9 +352,10 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     time_ub = meteorology['times'].max()
     print(f"Meteorology time range: {time_lb} to {time_ub}")
 
-    # Step 2: Load topography and vegetation data
+    # Step 2: Load topography, vegetation, and row/col mask
     topography = load_topography(file_paths)
     vegetation = load_vegetation(file_paths)
+    row_col_data = load_row_col_mask(file_paths)
 
     # Step 3: Load and filter fire detection data
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
@@ -480,7 +394,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
             raise ValueError("Not enough fire detections in the data to satisfy the minimum requirement.")
 
         # Extend the range to include additional non-fire detections up to `max_subset_size`
-        max_subset_size = 100  # Define maximum subset size
         subset_end = min(subset_start + max_subset_size, total_points)
 
     # Select the continuous subset
@@ -488,6 +401,14 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     lat_array = lat_array[subset_start:subset_end]
     dates_fire = dates_fire[subset_start:subset_end]
     labels = labels[subset_start:subset_end]
+
+    # Take a subset of the row_col_data to match the subset
+    rows = row_col_data["rows"][subset_start:subset_end]
+    cols = row_col_data["cols"][subset_start:subset_end]
+    valid_mask = row_col_data["valid_mask"][subset_start:subset_end]
+
+    # Update the dictionary for row_col_data
+    row_col_data = {"rows": rows, "cols": cols, "valid_mask": valid_mask}
 
     # Log subset statistics
     selected_date_range = f"{dates_fire.min()} to {dates_fire.max()}"
@@ -507,7 +428,17 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
 
     # Step 7: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
-    interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
+    interpolated_data = interpolate_all(
+        satellite_coords,
+        time_indices,
+        interp,
+        meteorology,
+        topography,
+        vegetation,
+        labels,
+        row_col_data,
+        debug
+    )
 
     # Step 8: Save and return results
     print("Saving test results...")
@@ -546,6 +477,7 @@ if __name__ == "__main__":
         # Load data
         topography = load_topography(file_paths)
         vegetation = load_vegetation(file_paths)
+        row_col_data = load_row_col_mask(file_paths)
         meteorology = load_meteorology(file_paths)
         time_lb = meteorology['times'].min()
         time_ub = meteorology['times'].max()
@@ -567,7 +499,7 @@ if __name__ == "__main__":
 
         # Perform interpolation
         satellite_coords = np.column_stack((lon_array, lat_array))
-        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
+        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, row_col_data, debug)
 
         # Save interpolated data
         interpolated_data.to_pickle('processed_data.pkl')
