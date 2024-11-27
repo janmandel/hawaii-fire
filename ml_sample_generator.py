@@ -315,8 +315,23 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
 
             # Debug: Check extracted values
             if debug and idx % progress_interval == 0:
-                print(f"Record {idx + 1}: temp={temp_val}, rain={rain_val}, rhum={rhum_val}, "
-                      f"elevation={elevation_val}, slope={slope_val}, aspect={aspect_val}")
+                print("=" * 50)  # Separator for clarity
+                print(f"Record {idx + 1}")
+                print(f"Date: {meteorology['times'][time_idx]}")
+                print(f"Coordinates: Longitude = {lon}, Latitude = {lat}")
+                print(f"Label: {label}")
+                print("Meteorological Data:")
+                print(f"  Temperature: {temp_val}")
+                print(f"  Rain: {rain_val}")
+                print(f"  Relative Humidity: {rhum_val}")
+                print(f"  Wind Speed: {wind_val}")
+                print(f"  Net Shortwave Radiation (SWDOWN - SWUP): {sw_val}")
+                print("Topographical Data:")
+                print(f"  Elevation: {elevation_val}")
+                print(f"  Slope: {slope_val}")
+                print(f"  Aspect: {aspect_val}")
+                print(f"  Fuel Model: {fuelmod_val}")
+                print("=" * 50)  # End separator
 
             # Append results
             data = {
