@@ -27,8 +27,9 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     """
     print('Computing row and column indices for topography and vegetation files...')
 
-    # Reproject lon/lat arrays to the raster's CRS using pyproj
+    print("Reproject lon/lat arrays to the raster's CRS using pyproj")
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+    print('done')
 
     if debug:
         print(f"Debug: The raster CRS is: {raster_crs}")
@@ -84,7 +85,7 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
     raster_x_min, raster_y_min = transform * (0, raster_shape[0])
     raster_x_max, raster_y_max = transform * (raster_shape[1], 0)
 
-    # Reproject bounds to WGS84
+    print("reproject bounds to WGS84")
     transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
 
     lon_min, lat_min = transformer.transform(raster_x_min, raster_y_min)
