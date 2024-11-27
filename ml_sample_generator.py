@@ -232,8 +232,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     valid_mask = row_col_data['valid_mask']
 
     # Apply the spatial mask
-    rows = rows[valid_mask]
-    cols = cols[valid_mask]
+    #rows = rows[valid_mask]
+    #cols = cols[valid_mask]
     satellite_coords = satellite_coords[valid_mask]
     time_indices = time_indices[valid_mask]
     labels = labels[valid_mask]
