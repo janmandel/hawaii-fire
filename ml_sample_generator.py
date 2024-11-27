@@ -319,6 +319,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 print(f"Record {idx + 1}")
                 print(f"Date: {meteorology['times'][time_idx]}")
                 print(f"Coordinates: Longitude = {lon}, Latitude = {lat}")
+                print(f"Raster Indices: Row = {row}, Column = {col}")
                 print(f"Label: {label}")
                 print("Meteorological Data:")
                 print(f"  Temperature: {temp_val}")
