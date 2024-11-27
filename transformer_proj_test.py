@@ -1,4 +1,5 @@
 import os
+import hashlib
 from os import path as osp 
 from pyproj import Transformer
 import numpy as np
@@ -117,11 +118,27 @@ def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug
 
     return rows_valid, cols_valid, lon_array_valid, lat_array_valid, valid_mask
 
+
+def calculate_checksum(file_path, algorithm="md5"):
+    """
+    Calculate the checksum of a file.
+    
+    :param file_path: Path to the file
+    :param algorithm: Hashing algorithm (e.g., 'md5', 'sha256', 'sha1')
+    :return: Hexadecimal checksum
+    """
+    hash_function = getattr(hashlib, algorithm)()  # Get the hash function from hashlib
+    with open(file_path, "rb") as file:
+        while chunk := file.read(8192):  # Read the file in chunks to handle large files
+            hash_function.update(chunk)
+    return hash_function.hexdigest()
+
 # Paths to the tif file
 home = osp.expanduser("~")
 base_dir = osp.abspath(osp.join(osp.expanduser("~"), 'p', 'data'))
 elevation_path = osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Elev_220_HI', 'LH20_Elev_220.tif')
 print('elevation_path =',elevation_path)
+print('file checksum=',calculate_checksum(elevation_path))
 
 # Load the elevation data
 with rasterio.open(elevation_path) as elevation_dataset:
