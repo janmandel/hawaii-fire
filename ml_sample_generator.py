@@ -282,7 +282,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     print("Entering the interpolation loop...")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
-            zip((lons, lats), time_indices, labels, rows, cols)):
+            zip(satellite_coords, time_indices, labels, rows, cols)):
         try:
             # Interpolate meteorological data
             ia, ja = interp.evaluate(lon, lat)
