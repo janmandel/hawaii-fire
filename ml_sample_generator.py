@@ -236,6 +236,16 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     time_indices = time_indices[valid_mask]
     labels = labels[valid_mask]
 
+    # Debug: Validate spatial masking
+    if debug:
+        print(f"After applying spatial mask:")
+        print(f"Satellite coordinates shape: {satellite_coords.shape}")
+        print(f"Labels shape: {labels.shape}")
+
+    # Validate and filter time indices separately
+    valid_time_mask = (time_indices >= 0) & (time_indices < len(meteorology['times']))
+    time_indices = time_indices[valid_time_mask]
+
     # Debug: Validate time indices
     if debug:
         valid_time_range = (0, len(meteorology['times']) - 1)
@@ -247,6 +257,10 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         print(f"Debug: The final timestamp is: {meteorology['times'][time_indices[-1]]}")
         if invalid_time_indices > 0:
             raise ValueError(f"Invalid time indices detected: {invalid_time_indices}")
+
+    # Ensure all data lengths match
+    if len(time_indices) != len(satellite_coords):
+        raise ValueError("Mismatch between time_indices and satellite_coords after masking.")
 
     data_interp = []
     total_records = len(satellite_coords)
