@@ -3,8 +3,14 @@ from os import path as osp
 from pyproj import Transformer
 import numpy as np
 import random
-import rasterio
+import rasterio 
+import pyproj
 from rasterio.transform import rowcol,xy
+
+print('rasterio',rasterio.__version__)
+print('pyproj',pyproj.__version__)
+print('numpy',np.__version__)
+
 
 def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug):
     """
