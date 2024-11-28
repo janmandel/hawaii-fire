@@ -318,8 +318,10 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 print("=" * 50)  # Separator for clarity
                 print(f"Record {idx + 1}")
                 print(f"Date: {meteorology['times'][time_idx]}")
+                print(f"Corresponding Time index: {time_idx}")
                 print(f"Coordinates: Longitude = {lon}, Latitude = {lat}")
                 print(f"Raster Indices: Row = {row}, Column = {col}")
+                print(f"Interpolated Indices(rounded): i = {i}, j = {j}")
                 print(f"Label: {label}")
                 print("Meteorological Data:")
                 print(f"  Temperature: {temp_val}")
@@ -405,12 +407,22 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     if subset_start is None or subset_end is None:
         print("Selecting a continuous subset with sufficient fire detections...")
 
-        # Sort the data by timestamps
+        # Sort all relevant arrays by dates_fire
         sorted_indices = np.argsort(dates_fire)
         lon_array = lon_array[sorted_indices]
         lat_array = lat_array[sorted_indices]
         dates_fire = dates_fire[sorted_indices]
         labels = labels[sorted_indices]
+
+        # Sort row_col_data accordingly
+        row_col_data["rows"] = row_col_data["rows"][sorted_indices]
+        row_col_data["cols"] = row_col_data["cols"][sorted_indices]
+        row_col_data["valid_mask"] = row_col_data["valid_mask"][sorted_indices]
+
+        # Validate lengths
+        assert len(lon_array) == len(row_col_data["rows"]), "Mismatch in array lengths after sorting."
+        assert len(lat_array) == len(row_col_data["cols"]), "Mismatch in array lengths after sorting."
+        assert len(dates_fire) == len(row_col_data["valid_mask"]), "Mismatch in mask length after sorting."
 
         # Find a continuous range with enough fire detections
         total_points = len(dates_fire)
@@ -426,9 +438,11 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
                 break
 
         if subset_end is None:
-            raise ValueError("Not enough fire detections in the data to satisfy the minimum requirement.")
+            print("Insufficient fire detections. Returning all available data as a fallback.")
+            subset_start = 0
+            subset_end = total_points
 
-        # Extend the range to include additional non-fire detections up to `max_subset_size`
+        # Extend range to include non-fire detections up to max_subset_size
         subset_end = min(subset_start + max_subset_size, total_points)
 
     # Select the continuous subset
@@ -437,13 +451,16 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     dates_fire = dates_fire[subset_start:subset_end]
     labels = labels[subset_start:subset_end]
 
-    # Take a subset of the row_col_data to match the subset
-    rows = row_col_data["rows"][subset_start:subset_end]
-    cols = row_col_data["cols"][subset_start:subset_end]
-    valid_mask = row_col_data["valid_mask"][subset_start:subset_end]
+    # Subset row_col_data
+    row_col_data_subset = {
+        "rows": row_col_data["rows"][subset_start:subset_end],
+        "cols": row_col_data["cols"][subset_start:subset_end],
+        "valid_mask": row_col_data["valid_mask"][subset_start:subset_end],
+    }
 
-    # Update the dictionary for row_col_data
-    row_col_data = {"rows": rows, "cols": cols, "valid_mask": valid_mask}
+    # Validate subset lengths
+    assert len(lon_array) == len(row_col_data_subset["rows"]), "Subset lengths do not match."
+    assert len(lat_array) == len(row_col_data_subset["cols"]), "Subset lengths do not match."
 
     # Log subset statistics
     selected_date_range = f"{dates_fire.min()} to {dates_fire.max()}"
@@ -471,7 +488,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         topography,
         vegetation,
         labels,
-        row_col_data,
+        row_col_data_subset,
         debug
     )
 
@@ -494,7 +511,7 @@ if __name__ == "__main__":
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
-    test = False  # Set to False to run the full workflow
+    test = True  # Set to False to run the full workflow
     debug = True # Set to False when the bugs are gone
 
     if test:
