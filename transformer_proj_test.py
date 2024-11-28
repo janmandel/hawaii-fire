@@ -143,7 +143,7 @@ print('elevation_path =',elevation_path)
 print('file checksum=',calculate_checksum(elevation_path))
 
 # Load the elevation data
-with rasterio.open(elevation_path) as elevation_dataset:
+with rasterio.open(elevation_path,sharing=False) as elevation_dataset:
     elevation_data = elevation_dataset.read(1)
     elevation_transform = elevation_dataset.transform
     elevation_crs = elevation_dataset.crs
