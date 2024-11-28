@@ -299,8 +299,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 print(f"Date: {meteorology['times'][time_idx]}")
                 print(f"Corresponding Time index: {time_idx}")
                 print(f"Coordinates: Longitude = {lon}, Latitude = {lat}")
-                print(f"Raster Indices: Row = {row}, Column = {col}")
                 print(f"Interpolated Indices(rounded): i = {i}, j = {j}")
+                print(f"Interpolated Raster Indices: Row = {row}, Column = {col}")
                 print(f"Label: {label}")
                 print("Meteorological Data:")
                 print(f"  Temperature: {temp_val}")
@@ -396,8 +396,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         print(f"lat_array shape: {lat_array.shape}")
         print(f"dates_fire shape: {dates_fire.shape}")
         print(f"labels shape: {labels.shape}")
-        print(f"rows shape: {rows.shape}")
-        print(f"cols shape: {cols.shape}")
 
     # Step 5: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
