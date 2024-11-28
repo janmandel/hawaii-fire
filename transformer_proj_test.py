@@ -9,10 +9,12 @@ import rasterio
 import pyproj
 from rasterio.transform import rowcol,xy
 
+
 print('rasterio',rasterio.__version__)
 print('pyproj',pyproj.__version__)
 print('numpy',np.__version__)
 print(f"Python version: {sys.version}")
+pyproj.show_versions()
 
 
 def get_row_col(lon_array, lat_array, raster_crs, transform, raster_shape, debug):
@@ -143,7 +145,7 @@ print('elevation_path =',elevation_path)
 print('file checksum=',calculate_checksum(elevation_path))
 
 # Load the elevation data
-with rasterio.open(elevation_path) as elevation_dataset:
+with rasterio.open(elevation_path,sharing=False) as elevation_dataset:
     elevation_data = elevation_dataset.read(1)
     elevation_transform = elevation_dataset.transform
     elevation_crs = elevation_dataset.crs
