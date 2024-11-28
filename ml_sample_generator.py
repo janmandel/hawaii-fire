@@ -15,6 +15,7 @@ from dbfread import DBF
 from datetime import datetime, timedelta
 import time
 import random
+import argparse
 
 # Functions
 def get_file_paths():
@@ -500,8 +501,8 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 10
-    max_subset_size = 100000  # Define maximum subset size
+    min_fire_detections = 200
+    max_subset_size = 10000000  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
