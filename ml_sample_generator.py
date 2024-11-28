@@ -15,6 +15,7 @@ from dbfread import DBF
 from datetime import datetime, timedelta
 import time
 import random
+import argparse
 
 # Functions
 def get_file_paths():
@@ -229,23 +230,6 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     # Precomputed raster indices and apply mask based off of extent of raster data
     rows = row_col_data['rows']
     cols = row_col_data['cols']
-    valid_mask = row_col_data['valid_mask']
-
-    # Apply the spatial mask
-    #rows = rows[valid_mask]
-    #cols = cols[valid_mask]
-    satellite_coords = satellite_coords[valid_mask]
-    time_indices = time_indices[valid_mask]
-    labels = labels[valid_mask]
-
-    # Debug: Validate spatial masking
-    if debug:
-        print(f"After applying spatial mask:")
-        print(f"Satellite coordinates shape: {satellite_coords.shape}")
-        print(f"Rows shape: {rows.shape}")
-        print(f"Cols shape: {cols.shape}")
-        print(f"Time indices shape: {time_indices.shape}")
-        print(f"Labels shape: {labels.shape}")
 
     # Validate and filter time indices separately
     valid_time_mask = (time_indices >= 0) & (time_indices < len(meteorology['times']))
@@ -267,18 +251,14 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     if len(time_indices) != len(satellite_coords):
         raise ValueError("Mismatch between time_indices and satellite_coords after masking.")
 
-    data_interp = []
+    # Calculate progress intervals
     total_records = len(satellite_coords)
+    progress_steps = 20  # Number of updates you want
+    progress_intervals = set((np.linspace(0, total_records - 1, progress_steps + 1)).astype(int))
     progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
-    # Debug: Validate raster indices
-    if debug:
-        out_of_bounds = (
-            (rows < 0) | (rows >= topography["elevation"].shape[0]) |
-            (cols < 0) | (cols >= topography["elevation"].shape[1])
-        )
-        print(f"Raster indices out of bounds: {np.sum(out_of_bounds)} / {len(rows)}")
-
+    # Init List for storing dictionaries of interpolated values
+    data_interp = []
     print("Entering the interpolation loop...")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
@@ -320,8 +300,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 print(f"Date: {meteorology['times'][time_idx]}")
                 print(f"Corresponding Time index: {time_idx}")
                 print(f"Coordinates: Longitude = {lon}, Latitude = {lat}")
-                print(f"Raster Indices: Row = {row}, Column = {col}")
                 print(f"Interpolated Indices(rounded): i = {i}, j = {j}")
+                print(f"Interpolated Raster Indices: Row = {row}, Column = {col}")
                 print(f"Label: {label}")
                 print("Meteorological Data:")
                 print(f"  Temperature: {temp_val}")
@@ -355,7 +335,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             data_interp.append(data)
 
             # Progress logging
-            if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
+            if idx in progress_intervals:
                 print(f"Processed {idx + 1} out of {total_records} records...")
 
         except Exception as e:
@@ -403,7 +383,22 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
-    # Step 4: Define subset with sufficient fire detections
+    # Step 4: Apply valid mask early
+    valid_mask = row_col_data["valid_mask"]
+    lon_array = lon_array[valid_mask]
+    lat_array = lat_array[valid_mask]
+    dates_fire = dates_fire[valid_mask]
+    labels = labels[valid_mask]
+
+    # Debug: Validate mask application
+    if debug:
+        print(f"After applying mask:")
+        print(f"lon_array shape: {lon_array.shape}")
+        print(f"lat_array shape: {lat_array.shape}")
+        print(f"dates_fire shape: {dates_fire.shape}")
+        print(f"labels shape: {labels.shape}")
+
+    # Step 5: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
         print("Selecting a continuous subset with sufficient fire detections...")
 
@@ -470,15 +465,15 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     print(f"Number of 'Fire' labels (1): {np.sum(labels == 1)}")
     print(f"Number of 'Non-Fire' labels (0): {np.sum(labels == 0)}")
 
-    # Step 5: Build interpolator
+    # Step 6: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 6: Compute time indices
+    # Step 7: Compute time indices
     time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
-    # Step 7: Perform interpolation
+    # Step 8: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(
         satellite_coords,
@@ -492,7 +487,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         debug
     )
 
-    # Step 8: Save and return results
+    # Step 9: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
@@ -506,8 +501,8 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 10
-    max_subset_size = 100000  # Define maximum subset size
+    min_fire_detections = 200
+    max_subset_size = 10000000  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
@@ -540,6 +535,13 @@ if __name__ == "__main__":
         lat_array = fire_detection_data['lat']
         dates_fire = fire_detection_data['dates_fire']
         labels = fire_detection_data['labels']
+
+        # Apply the valid mask (obtained from valid lon/lats within raster extent)
+        valid_mask = row_col_data["valid_mask"]
+        lon_array = lon_array[valid_mask]
+        lat_array = lat_array[valid_mask]
+        dates_fire = dates_fire[valid_mask]
+        labels = labels[valid_mask]
 
         # Build interpolator
         print("Building the interpolator...")
