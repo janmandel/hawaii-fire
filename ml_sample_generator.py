@@ -266,8 +266,10 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     # Ensure all data lengths match
     if len(time_indices) != len(satellite_coords):
         raise ValueError("Mismatch between time_indices and satellite_coords after masking.")
-
+    # Init List for storing dictionaries of interpolated values
     data_interp = []
+
+    # Calculate progress intervals
     total_records = len(satellite_coords)
     progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
@@ -403,7 +405,24 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
-    # Step 4: Define subset with sufficient fire detections
+    # Step 4: Apply valid mask early
+    valid_mask = row_col_data["valid_mask"]
+    lon_array = lon_array[valid_mask]
+    lat_array = lat_array[valid_mask]
+    dates_fire = dates_fire[valid_mask]
+    labels = labels[valid_mask]
+
+    # Debug: Validate mask application
+    if debug:
+        print(f"After applying mask:")
+        print(f"lon_array shape: {lon_array.shape}")
+        print(f"lat_array shape: {lat_array.shape}")
+        print(f"dates_fire shape: {dates_fire.shape}")
+        print(f"labels shape: {labels.shape}")
+        print(f"rows shape: {rows.shape}")
+        print(f"cols shape: {cols.shape}")
+
+    # Step 5: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
         print("Selecting a continuous subset with sufficient fire detections...")
 
@@ -470,15 +489,15 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     print(f"Number of 'Fire' labels (1): {np.sum(labels == 1)}")
     print(f"Number of 'Non-Fire' labels (0): {np.sum(labels == 0)}")
 
-    # Step 5: Build interpolator
+    # Step 6: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 6: Compute time indices
+    # Step 7: Compute time indices
     time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
-    # Step 7: Perform interpolation
+    # Step 8: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(
         satellite_coords,
@@ -492,7 +511,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         debug
     )
 
-    # Step 8: Save and return results
+    # Step 9: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
@@ -540,6 +559,13 @@ if __name__ == "__main__":
         lat_array = fire_detection_data['lat']
         dates_fire = fire_detection_data['dates_fire']
         labels = fire_detection_data['labels']
+
+        # Apply the valid mask (obtained from valid lon/lats within raster extent)
+        valid_mask = row_col_data["valid_mask"]
+        lon_array = lon_array[valid_mask]
+        lat_array = lat_array[valid_mask]
+        dates_fire = dates_fire[valid_mask]
+        labels = labels[valid_mask]
 
         # Build interpolator
         print("Building the interpolator...")
