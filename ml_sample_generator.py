@@ -229,23 +229,6 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     # Precomputed raster indices and apply mask based off of extent of raster data
     rows = row_col_data['rows']
     cols = row_col_data['cols']
-    valid_mask = row_col_data['valid_mask']
-
-    # Apply the spatial mask
-    #rows = rows[valid_mask]
-    #cols = cols[valid_mask]
-    satellite_coords = satellite_coords[valid_mask]
-    time_indices = time_indices[valid_mask]
-    labels = labels[valid_mask]
-
-    # Debug: Validate spatial masking
-    if debug:
-        print(f"After applying spatial mask:")
-        print(f"Satellite coordinates shape: {satellite_coords.shape}")
-        print(f"Rows shape: {rows.shape}")
-        print(f"Cols shape: {cols.shape}")
-        print(f"Time indices shape: {time_indices.shape}")
-        print(f"Labels shape: {labels.shape}")
 
     # Validate and filter time indices separately
     valid_time_mask = (time_indices >= 0) & (time_indices < len(meteorology['times']))
@@ -266,21 +249,15 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     # Ensure all data lengths match
     if len(time_indices) != len(satellite_coords):
         raise ValueError("Mismatch between time_indices and satellite_coords after masking.")
-    # Init List for storing dictionaries of interpolated values
-    data_interp = []
 
     # Calculate progress intervals
     total_records = len(satellite_coords)
+    progress_steps = 20  # Number of updates you want
+    progress_intervals = set((np.linspace(0, total_records - 1, progress_steps + 1)).astype(int))
     progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
-    # Debug: Validate raster indices
-    if debug:
-        out_of_bounds = (
-            (rows < 0) | (rows >= topography["elevation"].shape[0]) |
-            (cols < 0) | (cols >= topography["elevation"].shape[1])
-        )
-        print(f"Raster indices out of bounds: {np.sum(out_of_bounds)} / {len(rows)}")
-
+    # Init List for storing dictionaries of interpolated values
+    data_interp = []
     print("Entering the interpolation loop...")
 
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
@@ -357,7 +334,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             data_interp.append(data)
 
             # Progress logging
-            if (idx + 1) % progress_interval == 0 or idx + 1 == total_records:
+            if idx in progress_intervals:
                 print(f"Processed {idx + 1} out of {total_records} records...")
 
         except Exception as e:
