@@ -264,6 +264,12 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
             zip(satellite_coords, time_indices, labels, rows, cols)):
         try:
+            # Check if time_idx corresponds to a valid entry in meteorology['times']
+            if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx].strip() == '':
+                if debug:
+                    print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
+                continue
+
             # Interpolate meteorological data
             ia, ja = interp.evaluate(lon, lat)
             i, j = np.round(ia).astype(int), np.round(ja).astype(int)
@@ -501,8 +507,8 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 200
-    max_subset_size = 10000000  # Define maximum subset size
+    min_fire_detections = 10
+    max_subset_size = 100000  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
