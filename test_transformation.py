@@ -1,8 +1,16 @@
 from pyproj import Transformer
-import rasterio
+import rasterio, pyproj, sys
+import numpy as np
 
 # Path to the NFS-mounted raster file
 elevation_path = "./LH20_Elev_220.tif"
+
+print('rasterio',rasterio.__version__)
+print('pyproj',pyproj.__version__)
+print('numpy',np.__version__)
+print(f"Python version: {sys.version}")
+pyproj.show_versions()
+
 
 try:
     print("Reading CRS from raster file...")
