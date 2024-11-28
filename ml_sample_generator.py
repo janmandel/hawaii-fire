@@ -265,7 +265,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             zip(satellite_coords, time_indices, labels, rows, cols)):
         try:
             # Check if time_idx corresponds to a valid entry in meteorology['times']
-            if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx].strip() == '':
+            if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx] == '                   ':
                 if debug:
                     print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
                 continue
