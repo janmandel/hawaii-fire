@@ -297,10 +297,11 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 continue
 
             # Reproject lon/lat to raster CRS
-            print("Transforming coordinates to raster CRS...")
+            #print("Transforming coordinates to raster CRS...")
             raster_lon, raster_lat = transformer.transform(np.array([lon]), np.array([lat]))
 
             # Calculate row and column indices
+            transform = topography["transform"]
             inv_transform = ~transform
             col, row = inv_transform * (raster_lon, raster_lat)
 
