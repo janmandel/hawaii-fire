@@ -95,13 +95,13 @@ if __name__ == "__main__":
 
     # Define the record
     record_1 = {
-        "date": datetime.strptime("2011-01-02 11:00:00", "%Y-%m-%d %H:%M:%S"),
-        "lon": -154.803955078125,
-        "lat": 20.29543304443359
+        "date": datetime.strptime("2011-01-23 11:00:00", "%Y-%m-%d %H:%M:%S"),
+        "lon": -155.7398681640625,
+        "lat": 20.2125301361084
     }
 
     # Load meteorology data
-    meteorology = load_meteorology(file_path, 0, 12)
+    meteorology = load_meteorology(file_path, 0, 600)
 
     # Extract data for the record
     try:
