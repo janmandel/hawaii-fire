@@ -305,6 +305,10 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             inv_transform = ~transform
             col, row = inv_transform * (raster_lon, raster_lat)
 
+            # Round indices and convert to integers
+            rows = np.round(rows).astype(int)
+            cols = np.round(cols).astype(int)
+
             # Extract raster features
             if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
                 elevation_val = topography["elevation"][row, col]
@@ -312,7 +316,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 aspect_val = topography["aspect"][row, col]
                 fuelmod_val = vegetation[row, col]
             else:
-                print(f"Skipping iteration due to invalid raster indices at row={row}, col={col}")
+                print(f"Skipping iteration due to invalid raster indices for ({lon},{lat}) at row={row}, col={col}")
                 continue
 
             # Check for NaN values in topography or vegetation
