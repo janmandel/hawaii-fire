@@ -81,7 +81,7 @@ def load_vegetation(file_paths):
     """
     print("Loading vegetation data...")
 
-    with rasterio_open(file_paths['fuelmod_path']) as fuelmod_dataset:
+    with rasterio.open(file_paths['fuelmod_path']) as fuelmod_dataset:
         # Read data and retrieve nodata value
         fuelmod_data = fuelmod_dataset.read(1)
         fuelmod_nodata = fuelmod_dataset.nodata
