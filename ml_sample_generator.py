@@ -56,6 +56,11 @@ def load_topography(file_paths):
         elevation_data = elev.read(1)
         slope_data = slope.read(1)
         aspect_data = aspect.read(1)
+        crs = elev.crs.to_string()
+        transform = elev.transform
+
+        print(f"The crs is: {crs}")
+        print(f"The transform is: {transform}")
 
         # Replace nodata values and values < 0 with NaN and add debug for each variable
         elevation_data = np.where((elevation_data == elev.nodata) | (elevation_data < 0), np.nan, elevation_data)
@@ -67,12 +72,12 @@ def load_topography(file_paths):
         print(f"  - NaN values in aspect: {np.isnan(aspect_data).sum()}")
 
         # Return the data
-        topography_data = {
+        return {
             "elevation": elevation_data,
             "slope": slope_data,
             "aspect": aspect_data,
-            "crs": elev.crs.to_string(),
-            "transform": elev.transform,
+            "crs": crs,
+            "transform": transform,
         }
 
 def load_vegetation(file_paths):
