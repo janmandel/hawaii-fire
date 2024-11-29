@@ -286,14 +286,14 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     data_interp = []
     print("Entering the interpolation loop...")
 
-    for idx, ((lon, lat), time_idx, label, row, col) in enumerate(
-            zip(satellite_coords, time_indices, labels, rows, cols)):
+    for idx, ((lon, lat), time_idx, label) in enumerate(
+            zip(satellite_coords, time_indices, labels)):
         try:
             # Check if time_idx corresponds to a valid entry in meteorology['times']
             if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx] == '                   ':
                 if debug and time_idx != last_time_idx:
                     print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
-                    last_time_idx = time_idx  # Update the last checked time index
+                last_time_idx = time_idx  # Update the last checked time index
                 continue
 
             # Reproject lon/lat to raster CRS
@@ -311,7 +311,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 aspect_val = topography["aspect"][row, col]
                 fuelmod_val = vegetation[row, col]
             else:
-                print(f"Skipping iteration due invalid raster indices at row={row}, col={col}")
+                print(f"Skipping iteration due to invalid raster indices at row={row}, col={col}")
                 continue
 
             # Check for NaN values in topography or vegetation
