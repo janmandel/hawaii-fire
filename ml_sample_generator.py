@@ -57,8 +57,7 @@ def load_topography(file_paths):
         slope_data = slope.read(1)
         aspect_data = aspect.read(1)
 
-        # Replace nodata values with NaN and add debug for each variable
-        i# Replace NoData and values < -1 with NaN
+        # Replace nodata values and values < 0 with NaN and add debug for each variable
         elevation_data = np.where((elevation_data == elev.nodata) | (elevation_data < 0), np.nan, elevation_data)
         slope_data = np.where((slope_data == slope.nodata) | (slope_data < 0), np.nan, slope_data)
         aspect_data = np.where((aspect_data == aspect.nodata) | (aspect_data < 0), np.nan, aspect_data)
