@@ -288,7 +288,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx] == '                   ':
                 if debug and time_idx != last_time_idx:
                     print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
-                last_time_idx = time_idx  # Update the last checked time index
+                    last_time_idx = time_idx  # Update the last checked time index
                 continue
 
             # Reproject lon/lat to raster CRS
