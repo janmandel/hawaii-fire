@@ -30,7 +30,6 @@ def get_file_paths():
         "aspect_path": osp.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_Asp_220_HI', 'LH20_Asp_220.tif'),
         "fuelmod_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif'),
         "fuelvat_path": osp.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf'),
-        "row_col_path": osp.join(base_dir, 'feat', 'row_col_mask.nc'),
         "process_path": osp.join(base_dir, 'feat', 'weather', 'processed_output.nc'),
         "fire_path": osp.join(base_dir, 'targ', 'Hawaii-all_2024-10-29_16:36:26', 'ml_data')
     }
@@ -51,45 +50,65 @@ def load_topography(file_paths):
     """
     print("Loading topography data...")
     with rasterio.open(file_paths['elevation_path']) as elev, \
-         rasterio.open(file_paths['slope_path']) as slope, \
-         rasterio.open(file_paths['aspect_path']) as aspect:
-        #print(f"Trying to open {file_paths['elevation_path']} as {elev}")
-        return {
-            "elevation": elev.read(1),
-            "slope": slope.read(1),
-            "aspect": aspect.read(1),
+            rasterio.open(file_paths['slope_path']) as slope, \
+            rasterio.open(file_paths['aspect_path']) as aspect:
+        # Read data
+        elevation_data = elev.read(1)
+        slope_data = slope.read(1)
+        aspect_data = aspect.read(1)
+
+        # Replace nodata values with NaN and add debug for each variable
+        i# Replace NoData and values < -1 with NaN
+        elevation_data = np.where((elevation_data == elev.nodata) | (elevation_data < 0), np.nan, elevation_data)
+        slope_data = np.where((slope_data == slope.nodata) | (slope_data < 0), np.nan, slope_data)
+        aspect_data = np.where((aspect_data == aspect.nodata) | (aspect_data < 0), np.nan, aspect_data)
+        print(f"Topography data: Converted NoData and values < 0 to NaN.")
+        print(f"  - NaN values in elevation: {np.isnan(elevation_data).sum()}")
+        print(f"  - NaN values in slope: {np.isnan(slope_data).sum()}")
+        print(f"  - NaN values in aspect: {np.isnan(aspect_data).sum()}")
+
+        # Return the data
+        topography_data = {
+            "elevation": elevation_data,
+            "slope": slope_data,
+            "aspect": aspect_data,
             "crs": elev.crs.to_string(),
             "transform": elev.transform,
         }
 
 def load_vegetation(file_paths):
     """
-    Load vegetation data and map pixel values to vegetation classes.
+    Load vegetation data, map pixel values to vegetation classes, and handle specific replacements.
     """
     print("Loading vegetation data...")
-    fuelmod = rasterio.open(file_paths['fuelmod_path']).read(1)
+
+    with rasterio_open(file_paths['fuelmod_path']) as fuelmod_dataset:
+        # Read data and retrieve nodata value
+        fuelmod_data = fuelmod_dataset.read(1)
+        fuelmod_nodata = fuelmod_dataset.nodata
+
+        # Replace nodata values with NaN
+        if fuelmod_nodata is not None:
+            fuelmod_nodata_count = np.sum(fuelmod_data == fuelmod_nodata)
+            fuelmod_data = np.where(fuelmod_data == fuelmod_nodata, np.nan, fuelmod_data)
+            print(f"Replaced {fuelmod_nodata_count} nodata values in 'fuelmod' with NaN.")
+        else:
+            print("No nodata value defined for 'fuelmod'.")
+
+    # Load VAT file and map pixel values to vegetation classes
     vat_df = pd.DataFrame(iter(DBF(file_paths['fuelvat_path']))).sort_values(by='VALUE').reset_index(drop=True)
     value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
-    return np.vectorize(value_to_class.get)(fuelmod)
 
-def load_row_col_mask(file_paths):
-    """
-    Load pre-computed rows, cols, and valid_mask from a NetCDF file.
+    # Map fuelmod values to class names
+    fuel_classes = np.vectorize(value_to_class.get)(fuelmod_data)
 
-    Args:
-        nc_file_path (str): Path to the NetCDF file.
+    # Replace 'Barren' and 'Water' with NaN
+    replace_classes = ['Barren', 'Water', 'Fill-NoData']
+    replace_count = np.isin(fuel_classes, replace_classes).sum()
+    fuel_classes = np.where(np.isin(fuel_classes, replace_classes), np.nan, fuel_classes)
+    print(f"Replaced {replace_count} values ('Barren', 'Water', 'Fill-NoData') in 'fuelmod' with NaN.")
 
-    Returns:
-        dict: A dictionary containing rows, cols, and valid_mask.
-    """
-    print(f"Loading pre-computed rows, cols, and mask from {file_paths['row_col_path']}...")
-    with nc.Dataset(file_paths['row_col_path']) as nc_file:
-        rows = nc_file.variables['rows'][:]
-        cols = nc_file.variables['cols'][:]
-        valid_mask = nc_file.variables['valid_mask'][:].astype(bool)  # Convert to boolean array
-
-    print(f"Loaded data: rows({rows.shape}), cols({cols.shape}), valid_mask({valid_mask.shape})")
-    return {"rows": rows, "cols": cols, "valid_mask": valid_mask}
+    return fuel_classes
 
 def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
     """
@@ -221,15 +240,11 @@ def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
     return (e_pa / es_pa) * 100
 
-def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, row_col_data, debug):
+def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
     """
     Perform batch interpolation for all satellite coordinates and times.
     Only valid points are included in the output.
     """
-
-    # Precomputed raster indices and apply mask based off of extent of raster data
-    rows = row_col_data['rows']
-    cols = row_col_data['cols']
 
     # Validate and filter time indices separately
     valid_time_mask = (time_indices >= 0) & (time_indices < len(meteorology['times']))
@@ -257,6 +272,12 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
     progress_intervals = set((np.linspace(0, total_records - 1, progress_steps + 1)).astype(int))
     progress_interval = max(total_records // 10, 1)  # Log progress every 10%
 
+    # Initialize a variable to track the last valid time index
+    last_time_idx = None
+
+    # Initialize transformer
+    transformer = Transformer.from_crs("EPSG:4326", topography['crs'], always_xy=True)
+
     # Init List for storing dictionaries of interpolated values
     data_interp = []
     print("Entering the interpolation loop...")
@@ -266,8 +287,38 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         try:
             # Check if time_idx corresponds to a valid entry in meteorology['times']
             if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx] == '                   ':
-                if debug:
+                if debug and time_idx != last_time_idx:
                     print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
+                last_time_idx = time_idx  # Update the last checked time index
+                continue
+
+            # Reproject lon/lat to raster CRS
+            print("Transforming coordinates to raster CRS...")
+            raster_lon, raster_lat = transformer.transform(np.array([lon]), np.array([lat]))
+
+            # Calculate row and column indices
+            inv_transform = ~transform
+            col, row = inv_transform * (raster_lon, raster_lat)
+
+            # Extract raster features
+            if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
+                elevation_val = topography["elevation"][row, col]
+                slope_val = topography["slope"][row, col]
+                aspect_val = topography["aspect"][row, col]
+                fuelmod_val = vegetation[row, col]
+            else:
+                print(f"Skipping iteration due invalid raster indices at row={row}, col={col}")
+                continue
+
+            # Check for NaN values in topography or vegetation
+            if (
+                    np.isnan(elevation_val) or
+                    np.isnan(slope_val) or
+                    np.isnan(aspect_val) or
+                    np.isnan(fuelmod_val)
+            ):
+                if debug and idx in progress_intervals:
+                    print(f"Skipping iteration due to NaN values at row={row}, col={col}")
                 continue
 
             # Interpolate meteorological data
@@ -289,15 +340,6 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 meteorology['wind_u'][time_idx, i, j] ** 2 + meteorology['wind_v'][time_idx, i, j] ** 2
             )
             sw_val = meteorology['swdwn'][time_idx, i, j] - meteorology['swup'][time_idx, i, j]
-
-            # Extract raster features
-            if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
-                elevation_val = topography["elevation"][row, col]
-                slope_val = topography["slope"][row, col]
-                aspect_val = topography["aspect"][row, col]
-                fuelmod_val = vegetation[row, col]
-            else:
-                elevation_val, slope_val, aspect_val, fuelmod_val = np.nan, np.nan, np.nan, "Out of bounds"
 
             # Debug: Check extracted values
             if debug and idx % progress_interval == 0:
@@ -378,7 +420,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     # Step 2: Load topography, vegetation, and row/col mask
     topography = load_topography(file_paths)
     vegetation = load_vegetation(file_paths)
-    row_col_data = load_row_col_mask(file_paths)
 
     # Step 3: Load and filter fire detection data
     fire_detection_data = load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold)
@@ -388,21 +429,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     lat_array = fire_detection_data['lat']
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
-
-    # Step 4: Apply valid mask early
-    valid_mask = row_col_data["valid_mask"]
-    lon_array = lon_array[valid_mask]
-    lat_array = lat_array[valid_mask]
-    dates_fire = dates_fire[valid_mask]
-    labels = labels[valid_mask]
-
-    # Debug: Validate mask application
-    if debug:
-        print(f"After applying mask:")
-        print(f"lon_array shape: {lon_array.shape}")
-        print(f"lat_array shape: {lat_array.shape}")
-        print(f"dates_fire shape: {dates_fire.shape}")
-        print(f"labels shape: {labels.shape}")
 
     # Step 5: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
@@ -414,16 +440,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         lat_array = lat_array[sorted_indices]
         dates_fire = dates_fire[sorted_indices]
         labels = labels[sorted_indices]
-
-        # Sort row_col_data accordingly
-        row_col_data["rows"] = row_col_data["rows"][sorted_indices]
-        row_col_data["cols"] = row_col_data["cols"][sorted_indices]
-        row_col_data["valid_mask"] = row_col_data["valid_mask"][sorted_indices]
-
-        # Validate lengths
-        assert len(lon_array) == len(row_col_data["rows"]), "Mismatch in array lengths after sorting."
-        assert len(lat_array) == len(row_col_data["cols"]), "Mismatch in array lengths after sorting."
-        assert len(dates_fire) == len(row_col_data["valid_mask"]), "Mismatch in mask length after sorting."
 
         # Find a continuous range with enough fire detections
         total_points = len(dates_fire)
@@ -452,17 +468,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     dates_fire = dates_fire[subset_start:subset_end]
     labels = labels[subset_start:subset_end]
 
-    # Subset row_col_data
-    row_col_data_subset = {
-        "rows": row_col_data["rows"][subset_start:subset_end],
-        "cols": row_col_data["cols"][subset_start:subset_end],
-        "valid_mask": row_col_data["valid_mask"][subset_start:subset_end],
-    }
-
-    # Validate subset lengths
-    assert len(lon_array) == len(row_col_data_subset["rows"]), "Subset lengths do not match."
-    assert len(lat_array) == len(row_col_data_subset["cols"]), "Subset lengths do not match."
-
     # Log subset statistics
     selected_date_range = f"{dates_fire.min()} to {dates_fire.max()}"
     print(f"Selected range: start={subset_start}, end={subset_end}")
@@ -489,7 +494,6 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         topography,
         vegetation,
         labels,
-        row_col_data_subset,
         debug
     )
 
@@ -507,8 +511,8 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 10
-    max_subset_size = 100000  # Define maximum subset size
+    min_fire_detections = 1
+    max_subset_size = 10000  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
@@ -530,7 +534,6 @@ if __name__ == "__main__":
         # Load data
         topography = load_topography(file_paths)
         vegetation = load_vegetation(file_paths)
-        row_col_data = load_row_col_mask(file_paths)
         meteorology = load_meteorology(file_paths)
         time_lb = meteorology['times'].min()
         time_ub = meteorology['times'].max()
@@ -542,13 +545,6 @@ if __name__ == "__main__":
         dates_fire = fire_detection_data['dates_fire']
         labels = fire_detection_data['labels']
 
-        # Apply the valid mask (obtained from valid lon/lats within raster extent)
-        valid_mask = row_col_data["valid_mask"]
-        lon_array = lon_array[valid_mask]
-        lat_array = lat_array[valid_mask]
-        dates_fire = dates_fire[valid_mask]
-        labels = labels[valid_mask]
-
         # Build interpolator
         print("Building the interpolator...")
         interp = Coord_to_index(degree=2)
@@ -559,7 +555,7 @@ if __name__ == "__main__":
 
         # Perform interpolation
         satellite_coords = np.column_stack((lon_array, lat_array))
-        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, row_col_data, debug)
+        interpolated_data = interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug)
 
         # Save interpolated data
         interpolated_data.to_pickle('processed_data.pkl')
