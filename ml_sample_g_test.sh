@@ -13,4 +13,4 @@ eval "$(conda shell.bash hook)"
 conda activate hi-fire
 
 # Run the Python script and redirect stderr to stdout
-PYTHONUNBUFFERED=1 python ml_sample_generator.py > logs/ml_sample_generator_test.log 2>&1
+PYTHONUNBUFFERED=1 python ml_sample_generator.py > logs/ml_sample_generator.log 2>&1

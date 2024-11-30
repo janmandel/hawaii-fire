@@ -95,9 +95,9 @@ if __name__ == "__main__":
 
     # Define the record
     record_1 = {
-        "date": datetime.strptime("2011-01-23 11:00:00", "%Y-%m-%d %H:%M:%S"),
-        "lon": -155.7398681640625,
-        "lat": 20.2125301361084
+        "date": datetime.strptime("2011-01-02 08:00:00", "%Y-%m-%d %H:%M:%S"),
+        "lon": -155.61312866210938,
+        "lat": 19.07356071472168
     }
 
     # Load meteorology data

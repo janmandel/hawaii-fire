@@ -526,7 +526,7 @@ if __name__ == "__main__":
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
-    test = True  # Set to False to run the full workflow
+    test = False  # Set to False to run the full workflow
     debug = False # Set to False when the bugs are gone
 
     if test:
