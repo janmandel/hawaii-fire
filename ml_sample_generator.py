@@ -21,7 +21,10 @@ import argparse
 def get_file_paths():
     """
     Define and validate file paths.
-    Returns a dictionary of paths.
+
+    Returns:
+        dict: A dictionary with keys corresponding to data types (e.g., 'slope_path') and
+              values being the full file paths to required data files.
     """
     base_dir = osp.join('/', 'home', 'spearsty', 'p', 'data')
     file_paths = {
@@ -43,10 +46,11 @@ def load_topography(file_paths):
     Load topography data and associated metadata from GeoTIFF files.
 
     Args:
-        file_paths (dict): Dictionary containing paths to elevation, slope, and aspect files.
+        file_paths (dict): A dictionary containing paths to elevation, slope, and aspect files.
 
     Returns:
-        dict: Contains topography arrays ('elevation', 'slope', 'aspect'), CRS, and transform.
+        dict: Contains topography arrays ('elevation', 'slope', 'aspect'), CRS (coordinate reference system),
+              and transform matrix for geographical data.
     """
     print("Loading topography data...")
     with rasterio.open(file_paths['elevation_path']) as elev, \
@@ -83,6 +87,13 @@ def load_topography(file_paths):
 def load_vegetation(file_paths):
     """
     Load vegetation data, map pixel values to vegetation classes, and handle specific replacements.
+
+    Args:
+        file_paths (dict): A dictionary containing paths to fuel model and VAT files.
+
+    Returns:
+        np.ndarray: An array of vegetation class names corresponding to pixel values in the input data,
+                    with 'Barren', 'Water', and 'Fill-NoData' replaced by NaN.
     """
     print("Loading vegetation data...")
 
@@ -107,16 +118,35 @@ def load_vegetation(file_paths):
     fuel_classes = np.vectorize(value_to_class.get)(fuelmod_data)
 
     # Replace 'Barren' and 'Water' with NaN
-    replace_classes = ['Barren', 'Water', 'Fill-NoData']
+    replace_classes = ['Barren', 'Water', 'Urban', 'Fill-NoData']
     replace_count = np.isin(fuel_classes, replace_classes).sum()
     fuel_classes = np.where(np.isin(fuel_classes, replace_classes), np.nan, fuel_classes)
-    print(f"Replaced {replace_count} values ('Barren', 'Water', 'Fill-NoData') in 'fuelmod' with NaN.")
+    print(f"Replaced {replace_count} values ('Barren', 'Water', 'Urban', 'Fill-NoData') in 'fuelmod' with NaN.")
 
     return fuel_classes
 
 def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
-    """
+     """
     Load meteorology data from a NetCDF file.
+
+    Args:
+        file_paths (dict): Dictionary containing the path to the meteorology NetCDF file ('process_path').
+        start_index (int, optional): Start index for time slicing. Defaults to 0.
+        end_index (int, optional): End index for time slicing. Defaults to -1 (all times).
+
+    Returns:
+        dict: A dictionary containing:
+            - 'rain' (np.ndarray): Rainfall data.
+            - 'temp' (np.ndarray): Temperature data in Kelvin.
+            - 'vapor' (np.ndarray): Water vapor mixing ratio.
+            - 'wind_u' (np.ndarray): U-component of wind.
+            - 'wind_v' (np.ndarray): V-component of wind.
+            - 'swdwn' (np.ndarray): Downward shortwave radiation.
+            - 'swup' (np.ndarray): Upward shortwave radiation.
+            - 'press' (np.ndarray): Surface pressure in Pascals.
+            - 'lon_grid' (np.ndarray): Longitude grid.
+            - 'lat_grid' (np.ndarray): Latitude grid.
+            - 'times' (pd.Series): Processed times as pandas Timestamps.
     """
     print("Loading meteorology data...")
     data = nc.Dataset(file_paths['process_path'])
@@ -136,10 +166,21 @@ def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
 
 def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
     """
-    Load and process fire detection data.
-    Retains all points but filters out those with a label of 1 and confidence < confidence_threshold.
-    and time indices that aren't in [time_lb, time_ub]
+    Load and process fire detection data, filtering by confidence threshold and time bounds.
 
+    Args:
+        file_paths (dict): Dictionary containing the path to fire detection data ('fire_path').
+        time_lb (pd.Timestamp): Lower bound for time filtering.
+        time_ub (pd.Timestamp): Upper bound for time filtering.
+        confidence_threshold (float): Minimum confidence for valid fire detections.
+
+    Returns:
+        dict: A dictionary containing:
+            - 'lon' (np.ndarray): Array of longitudes.
+            - 'lat' (np.ndarray): Array of latitudes.
+            - 'time_days' (np.ndarray): Time in days since the base time.
+            - 'dates_fire' (pd.DatetimeIndex): Rounded datetime of fire detections.
+            - 'labels' (np.ndarray): Array of binary labels (1 = fire, 0 = no fire).
     """
     print("Loading fire detection data...")
     X, y, c, basetime = load(file_paths['fire_path'])
@@ -182,17 +223,17 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
 
 
 def compute_time_indices(satellite_times, processed_times, debug):
-    """
-    Compute the number of hours since the start of processed data for each satellite time.
-    Ensure alignment between satellite and processed data timestamps.
+     """
+    Compute the time indices for satellite observations relative to processed meteorological data.
 
     Args:
-        satellite_times (pd.Series or pd.DatetimeIndex): Satellite observation times.
-        processed_times (pd.Series or pd.DatetimeIndex): Times in the processed meteorology dataset.
-        debug (bool): If True, print debug information and validate time indices.
+        satellite_times (pd.Series or pd.DatetimeIndex): Satellite observation timestamps.
+        processed_times (pd.Series or pd.DatetimeIndex): Processed meteorological timestamps.
+        debug (bool): If True, prints debug information.
 
     Returns:
-        np.ndarray: Array of computed time indices.
+        np.ndarray: Array of integer time indices representing the time alignment between satellite
+                    and processed meteorology data.
     """
     print("Computing the time indices for the fire detection data...")
     start_time = processed_times[0]
@@ -237,17 +278,43 @@ def compute_time_indices(satellite_times, processed_times, debug):
 def calc_rhum(temp_K, mixing_ratio, pressure_pa):
     """
     Calculate relative humidity from temperature and mixing ratio.
+
+    Args:
+        temp_K (float): Temperature in Kelvin.
+        mixing_ratio (float): Mixing ratio in kg/kg.
+        pressure_pa (float): Atmospheric pressure in Pascals.
+
+    Returns:
+        float: Relative humidity as a percentage, capped at 100%.
     """
     epsilon = 0.622
     es_hpa = 6.112 * np.exp((17.67 * (temp_K - 273.15)) / ((temp_K - 273.15) + 243.5))
     es_pa = es_hpa * 100
     e_pa = (mixing_ratio * pressure_pa) / (epsilon + mixing_ratio)
-    return (e_pa / es_pa) * 100
+    rhum = (e_pa / es_pa) * 100
+    if rhum > 100:
+        rhum = 100
+
+    return rhum
 
 def interpolate_all(satellite_coords, time_indices, interp, meteorology, topography, vegetation, labels, debug):
     """
     Perform batch interpolation for all satellite coordinates and times.
-    Only valid points are included in the output.
+    Filter and skip invalid points in the dataset.
+
+    Args:
+        satellite_coords (np.ndarray): Array of satellite coordinates (lon, lat).
+        time_indices (np.ndarray): Array of time indices corresponding to satellite observations.
+        interp (Coord_to_index): Interpolator for coordinate mapping.
+        meteorology (dict): Meteorological data including temperature, wind, and pressure.
+        topography (dict): Topographic data including elevation, slope, and aspect.
+        vegetation (np.ndarray): Vegetation data mapped to class names.
+        labels (np.ndarray): Array of labels for data points.
+        row_col_data (dict): Row and column index data for raster alignment.
+        debug (bool): If True, enables detailed debugging output.
+
+    Returns:
+        pd.DataFrame: DataFrame containing interpolated values for each satellite observation.
     """
 
     # Validate and filter time indices separately
@@ -440,7 +507,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     dates_fire = fire_detection_data['dates_fire']
     labels = fire_detection_data['labels']
 
-    # Step 5: Define subset with sufficient fire detections
+    # Step 4: Define subset with sufficient fire detections
     if subset_start is None or subset_end is None:
         print("Selecting a continuous subset with sufficient fire detections...")
 
@@ -486,15 +553,15 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
     print(f"Number of 'Fire' labels (1): {np.sum(labels == 1)}")
     print(f"Number of 'Non-Fire' labels (0): {np.sum(labels == 0)}")
 
-    # Step 6: Build interpolator
+    # Step 5: Build interpolator
     print("Building interpolator...")
     interp = Coord_to_index(degree=2)
     interp.build(meteorology['lon_grid'], meteorology['lat_grid'])
 
-    # Step 7: Compute time indices
+    # Step 6: Compute time indices
     time_indices = compute_time_indices(dates_fire, meteorology['times'], debug)
 
-    # Step 8: Perform interpolation
+    # Step 7: Perform interpolation
     satellite_coords = np.column_stack((lon_array, lat_array))
     interpolated_data = interpolate_all(
         satellite_coords,
@@ -507,7 +574,7 @@ def test_function(file_paths, subset_start, subset_end, min_fire_detections, max
         debug
     )
 
-    # Step 9: Save and return results
+    # Step 8: Save and return results
     print("Saving test results...")
     interpolated_data.to_pickle("test_processed_data.pkl")
     print("Test data saved to 'test_processed_data.pkl'.")
