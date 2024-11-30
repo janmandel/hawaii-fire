@@ -125,7 +125,7 @@ def load_vegetation(file_paths):
 
     return fuel_classes
 
-def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
+def load_meteorology(file_paths, start_index = 0, end_index = -1):
      """
     Load meteorology data from a NetCDF file.
 
@@ -148,8 +148,10 @@ def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
             - 'lat_grid' (np.ndarray): Latitude grid.
             - 'times' (pd.Series): Processed times as pandas Timestamps.
     """
+
     print("Loading meteorology data...")
     data = nc.Dataset(file_paths['process_path'])
+
     return {
         "rain": data.variables['RAIN'][start_index:end_index, :, :],
         "temp": data.variables['T2'][start_index:end_index, :, :],
@@ -161,7 +163,11 @@ def load_meteorology(file_paths, start_index = 0, end_index = -1 ):
         "press": data.variables['PSFC'][start_index:end_index, :, :],
         "lon_grid": data.variables['XLONG'][:, :],
         "lat_grid": data.variables['XLAT'][:, :],
-        "times": pd.to_datetime([t.strip() for t in data.variables['times'][start_index:end_index]], format='%Y-%m-%d_%H:%M:%S', errors='coerce')
+        "times": pd.to_datetime(
+            [t.strip() for t in data.variables['times'][start_index:end_index]],
+            format='%Y-%m-%d_%H:%M:%S',
+            errors='coerce'
+        )
     }
 
 def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
