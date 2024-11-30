@@ -521,13 +521,13 @@ if __name__ == "__main__":
     # Define parameters
     subset_start = None  # Let the function compute based on fire detections
     subset_end = None
-    min_fire_detections = 1
-    max_subset_size = 10000  # Define maximum subset size
+    min_fire_detections = 1000
+    max_subset_size = 50000000  # Define maximum subset size
     confidence_threshold = 70
 
     # Toggle testing mode and debug mode
     test = True  # Set to False to run the full workflow
-    debug = True # Set to False when the bugs are gone
+    debug = False # Set to False when the bugs are gone
 
     if test:
         test_data = test_function(file_paths, subset_start, subset_end, min_fire_detections, max_subset_size, confidence_threshold,
