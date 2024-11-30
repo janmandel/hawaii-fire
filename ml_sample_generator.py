@@ -126,7 +126,7 @@ def load_vegetation(file_paths):
     return fuel_classes
 
 def load_meteorology(file_paths, start_index = 0, end_index = -1):
-     """
+    """
     Load meteorology data from a NetCDF file.
 
     Args:
