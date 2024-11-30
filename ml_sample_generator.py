@@ -292,7 +292,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             # Check if time_idx corresponds to a valid entry in meteorology['times']
             if pd.isna(meteorology['times'][time_idx]) or meteorology['times'][time_idx] == '                   ':
                 if debug and time_idx != last_time_idx:
-                    print(f"Skipping due to invalid timestamp at index {idx}: time_idx={time_idx}")
+                    print(f"Skipping iteration due to invalid timestamp at index {idx}: time_idx={time_idx}")
                 last_time_idx = time_idx  # Update the last checked time index
                 continue
 
@@ -316,7 +316,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                 aspect_val = topography["aspect"][row, col]
                 fuelmod_val = vegetation[row, col]
             else:
-                print(f"Skipping iteration due to invalid raster indices for ({lon},{lat}) at row={row}, col={col}")
+                if debug and idx in progress_intervals:
+                    print(f"Skipping iteration due to invalid raster indices for ({lon},{lat}) at row={row}, col={col}")
                 continue
 
             # Check for NaN values in topography or vegetation
@@ -324,7 +325,7 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
                     np.isnan(elevation_val) or
                     np.isnan(slope_val) or
                     np.isnan(aspect_val) or
-                    np.isnan(fuelmod_val)
+                    pd.isna(fuelmod_val)
             ):
                 if debug and idx in progress_intervals:
                     print(f"Skipping iteration due to NaN values at row={row}, col={col}")
