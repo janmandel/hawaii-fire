@@ -229,7 +229,7 @@ def load_fire_detection(file_paths, time_lb, time_ub, confidence_threshold):
 
 
 def compute_time_indices(satellite_times, processed_times, debug):
-     """
+    """
     Compute the time indices for satellite observations relative to processed meteorological data.
 
     Args:
