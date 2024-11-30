@@ -306,8 +306,8 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
             col, row = inv_transform * (raster_lon, raster_lat)
 
             # Round indices and convert to integers
-            row = np.round(row).astype(int)
-            col = np.round(col).astype(int)
+            row = int(np.round(row).item())
+            col = int(np.round(col).item())
 
             # Extract raster features
             if 0 <= row < topography["elevation"].shape[0] and 0 <= col < topography["elevation"].shape[1]:
