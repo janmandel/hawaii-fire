@@ -15,9 +15,10 @@ from sklearn.metrics import (
     auc
 )
 import tensorflow as tf
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, InputLayer
-from tensorflow.keras.optimizers import Adam
+from keras.models import Sequential, load_model
+from keras.layers import Dense, InputLayer
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping
 import os
 
 
@@ -98,7 +99,7 @@ def create_dnn_model(input_dim):
 def train_dnn_model(model, X_train, y_train, validation_split=0.2, epochs=100, batch_size=32):
     """Train the DNN model with early stopping."""
     print("Training DNN model...")
-    early_stopping = tf.keras.callbacks.EarlyStopping(
+    early_stopping = EarlyStopping(
         monitor='val_loss',
         patience=10,
         restore_best_weights=True
