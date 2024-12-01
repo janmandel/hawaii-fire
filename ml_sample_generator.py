@@ -316,7 +316,6 @@ def interpolate_all(satellite_coords, time_indices, interp, meteorology, topogra
         topography (dict): Topographic data including elevation, slope, and aspect.
         vegetation (np.ndarray): Vegetation data mapped to class names.
         labels (np.ndarray): Array of labels for data points.
-        row_col_data (dict): Row and column index data for raster alignment.
         debug (bool): If True, enables detailed debugging output.
 
     Returns:
