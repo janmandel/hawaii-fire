@@ -201,7 +201,7 @@ def load_trained_model(file_path):
 
 #"""Main function to train, evaluate, and analyze the model."""
 # Main Execution
-if __name__ == "__main__"
+if __name__ == "__main__":
     data_path = 'processed_data.pkl'
     model_path = 'dnn_model.hd5'
     saliency_output_path = 'saliency_map_sample_0.png'
