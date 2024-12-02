@@ -18,10 +18,8 @@ from keras.models import Sequential, load_model
 from keras.layers import Dense, InputLayer
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
-from tf_keras_vis.utils.scores import CategoricalScore
-from tf_keras_vis.utils.input_modifiers import Normalize
-from tf_keras_vis.saliency import Saliency
-from tf_keras_vis.gradcam import Gradcam
+from vis.visualization import visualize_saliency
+from vis.utils import utils
 import os
 
 
@@ -153,48 +151,44 @@ def evaluate_model(model, X_test, y_test):
     plt.close()
 
 
-def visualize_with_tf_keras_vis(model, X_sample, feature_columns, output_path):
+def generate_saliency_map(model_path, X_data, sample_index, layer_name, class_index, output_path):
     """
-    Visualize feature importance using tf-keras-vis Integrated Gradients and save the visualization.
+    Generate and save a saliency map for a given sample.
 
-    Args:
-        model: Trained Keras model.
-        X_sample: Sample data for explanation (numpy array).
-        feature_columns: List of feature column names.
-        output_path: File path to save the visualization.
+    Parameters:
+    - model_path (str): Path to the trained model file.
+    - X_data (np.ndarray): Dataset from which the sample is selected.
+    - sample_index (int): Index of the sample to visualize.
+    - layer_name (str): Name of the layer to analyze.
+    - class_index (int): Index of the class for which saliency is computed.
+    - output_path (str): Path to save the generated saliency map.
+
+    Returns:
+    - None
     """
-    print("Visualizing feature importance with tf-keras-vis...")
+    print(f"Loading model from {model_path}...")
+    model = load_model(model_path)
 
-    # Define the score function
-    score = CategoricalScore([1])  # Focus on the class of interest (fire occurrence)
+    print(f"Preparing layer modifications for saliency visualization...")
+    layer_idx = utils.find_layer_idx(model, layer_name)
 
-    # Initialize Integrated Gradients
-    saliency = Saliency(model, model_modifier=None, clone=True)
+    # Optional: Swap activation to linear for better gradient calculation
+    model.layers[layer_idx].activation = None
+    model = utils.apply_modifications(model)
 
-    # Generate saliency maps
-    saliency_map = saliency(score, X_sample, smooth_samples=20, smooth_noise=0.1)
+    print(f"Generating saliency map for sample {sample_index}, class {class_index}...")
+    sample_input = X_data[sample_index].reshape(1, -1)
+    saliency_map = visualize_saliency(model, layer_idx, filter_indices=class_index, seed_input=sample_input)
 
-    # Aggregate the saliency maps for all features
-    aggregated_saliency = np.mean(saliency_map[0], axis=0)
-
-    # Create a bar plot for feature attributions
-    feature_attributions = dict(zip(feature_columns, aggregated_saliency))
-    plt.figure(figsize=(10, 6))
-    plt.bar(feature_attributions.keys(), feature_attributions.values(), color='skyblue')
-    plt.xticks(rotation=45, ha='right', fontsize=10)
-    plt.ylabel("Saliency Attribution")
-    plt.title("Feature Importances (Saliency)", fontsize=14)
-    plt.tight_layout()
-
-    # Save the visualization
-    plt.savefig(output_path, dpi=300)
+    print(f"Plotting and saving saliency map to {output_path}...")
+    plt.figure(figsize=(10, 8))
+    plt.title(f'Saliency Map for Sample {sample_index}', fontsize=16)
+    plt.imshow(saliency_map, cmap='viridis')
+    plt.axis('off')
+    plt.colorbar()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"Visualization saved to {output_path}")
-
-    # Print attributions for logging
-    print("\nFeature Importance (Saliency):")
-    for feature, attribution in feature_attributions.items():
-        print(f"{feature}: {attribution:.4f}")
+    print(f"Saliency map saved to {output_path}.")
 
 
 def save_model(model, file_path):
@@ -215,6 +209,7 @@ def main():
     """Main function to train, evaluate, or analyze the model."""
     data_path = 'processed_data.pkl'
     model_path = 'dnn_model.hd5'
+    saliency_output_path = 'saliency_map_sample_0.png'
 
     # Load data
     X, y, feature_columns = load_and_preprocess_data(data_path)
@@ -233,10 +228,15 @@ def main():
     # Evaluate model
     evaluate_model(model, X_test, y_test)
 
-    # Use a single sample for visualization
-    X_sample = X_train.iloc[:1].values  # Extract the first example from the training set
-    visualize_with_tf_keras_vis(model, X_sample, feature_columns, output_path="tf_keras_vis_visualization.png")
+    # Generate saliency map for a specific sample
+    generate_saliency_map(
+        model_path=model_path,
+        X_data=X_test,
+        sample_index=0,  # Example: First test sample
+        layer_name='dense_2',  # Adjust based on your architecture
+        class_index=1,  # Example: Fire class
+        output_path=saliency_output_path
+    )
 
-
-if __name__ == "__main__":
+    if __name__ == "__main__":
     main()
