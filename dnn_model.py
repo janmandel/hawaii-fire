@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.metrics import (
@@ -18,7 +17,6 @@ from keras.models import Sequential, load_model
 from keras.layers import Dense, InputLayer
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
-import shap
 import os
 
 
@@ -48,35 +46,6 @@ def load_and_preprocess_data(file_path):
     feature_columns = numeric_features + list(fuelmod_feature_names)
     X = processed_df[feature_columns]
     y = processed_df['label']
-
-    # --- Correlation Matrix ---
-    plt.figure(figsize=(10, 8))
-
-    # Compute the correlation matrix
-    corr_matrix = X.corr()
-
-    # Round the correlation values for display
-    corr_matrix_rounded = corr_matrix.round(2)
-
-    # Create the heatmap with rounded values and cleaner axes
-    sns.heatmap(
-        corr_matrix_rounded,
-        annot=True,  # Display the correlation values
-        fmt=".2f",  # Format the annotation to 2 decimal places
-        cmap='coolwarm',  # Use a clean colormap
-        cbar=True,  # Include a color bar
-        square=True,  # Make the heatmap square-shaped
-        linewidths=0.5  # Add small lines between the cells for separation
-    )
-
-    # Update the axes for clarity
-    plt.xticks(rotation=45, ha="right")  # Rotate and align x-axis labels
-    plt.yticks(rotation=0)  # Keep y-axis labels horizontal
-    plt.title('Feature Correlation Matrix', fontsize=16)  # Add a title
-    plt.tight_layout()  # Adjust layout for better spacing
-    plt.savefig("correlation_matrix.png")  # Save the plot to a file
-    plt.close()  # Close the figure to free memory
-    print("Correlation matrix saved to 'correlation_matrix.png'")
 
     return X, y, feature_columns
 
@@ -120,7 +89,11 @@ def evaluate_model(model, X_test, y_test):
     """Evaluate the trained model and visualize performance metrics."""
     print("Evaluating model...")
     y_pred_proba = model.predict(X_test).flatten()
-    y_pred = (y_pred_proba >= 0.5).astype(int)
+    precision, recall, thresholds = precision_recall_curve(y_test, y_pred_proba)
+    f1_scores = 2 * (precision * recall) / (precision + recall)
+    optimal_idx = f1_scores.argmax()
+    optimal_threshold = thresholds[optimal_idx]
+    y_pred = (y_pred_proba >= optimal_threshold).astype(int)
 
     # Metrics
     accuracy = accuracy_score(y_test, y_pred)
@@ -149,44 +122,6 @@ def evaluate_model(model, X_test, y_test):
     plt.savefig('roc_curve.png')
     plt.close()
 
-
-def perform_shap_analysis(model, X_train, X_test, feature_columns):
-    """
-    Perform SHAP analysis on the DNN model to explain feature importance.
-
-    Args:
-        model: Trained TensorFlow/Keras model.
-        X_train: Training data.
-        X_test: Test data.
-        feature_columns: List of feature names.
-
-    Returns:
-        None. Saves SHAP visualizations to files.
-    """
-    print("Performing SHAP analysis...")
-
-    # Sample a subset of data for computational efficiency
-    X_sample = X_test.sample(n=min(1000, len(X_test)), random_state=42)
-
-    # Create SHAP explainer
-    explainer = shap.GradientExplainer(model, X_train.values)
-
-    # Compute SHAP values for the test sample
-    shap_values = explainer.shap_values(X_sample.values)
-
-    # Plot summary bar graph
-    shap.summary_plot(shap_values, X_sample, feature_names=feature_columns, plot_type="bar")
-    plt.savefig("shap_summary_bar.png")
-    plt.close()
-
-    # Plot detailed summary graph
-    shap.summary_plot(shap_values, X_sample, feature_names=feature_columns)
-    plt.savefig("shap_summary.png")
-    plt.close()
-
-    print("SHAP analysis completed. Visualizations saved.")
-
-
 def save_model(model, file_path):
     """Save the trained model to disk."""
     print(f"Saving model to {file_path}...")
@@ -203,8 +138,7 @@ def load_trained_model(file_path):
 # Main Execution
 if __name__ == "__main__":
     data_path = 'processed_data.pkl'
-    model_path = 'dnn_model.h5'
-    saliency_output_path = 'saliency_map_sample_0.png'
+    model_path = 'dnn_model.keras'
 
     # Load data
     X, y, feature_columns = load_and_preprocess_data(data_path)
@@ -223,7 +157,5 @@ if __name__ == "__main__":
     # Evaluate model
     evaluate_model(model, X_test, y_test)
 
-    # Perform SHAP analysis
-    perform_shap_analysis(model, X_train, X_test, feature_columns)
 
 
