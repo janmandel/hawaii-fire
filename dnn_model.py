@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.metrics import (
@@ -19,6 +18,10 @@ from keras.models import Sequential, load_model
 from keras.layers import Dense, InputLayer
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
+from tf_keras_vis.utils.scores import CategoricalScore
+from tf_keras_vis.utils.input_modifiers import Normalize
+from tf_keras_vis.saliency import Saliency
+from tf_keras_vis.gradcam import Gradcam
 import os
 
 
@@ -150,28 +153,48 @@ def evaluate_model(model, X_test, y_test):
     plt.close()
 
 
-def perform_shap_analysis(model, X_train, X_test, feature_columns):
-    """Perform SHAP analysis on the model."""
-    print("Performing SHAP analysis...")
-    # Due to computational constraints, sample the data
-    X_train_sample = X_train.sample(n=min(500, len(X_train)), random_state=42)
-    X_test_sample = X_test.sample(n=min(500, len(X_test)), random_state=42)
+def visualize_with_tf_keras_vis(model, X_sample, feature_columns, output_path):
+    """
+    Visualize feature importance using tf-keras-vis Integrated Gradients and save the visualization.
 
-    # Create the SHAP explainer for DNN
-    explainer = shap.GradientExplainer(model, X_train_sample.values)
+    Args:
+        model: Trained Keras model.
+        X_sample: Sample data for explanation (numpy array).
+        feature_columns: List of feature column names.
+        output_path: File path to save the visualization.
+    """
+    print("Visualizing feature importance with tf-keras-vis...")
 
-    # Compute SHAP values for the test sample
-    shap_values = explainer.shap_values(X_test_sample.values)
+    # Define the score function
+    score = CategoricalScore([1])  # Focus on the class of interest (fire occurrence)
 
-    # Summary Plot
-    shap.summary_plot(shap_values, X_test_sample, feature_names=feature_columns, plot_type="bar")
-    plt.savefig('shap_summary_bar.png')
+    # Initialize Integrated Gradients
+    saliency = Saliency(model, model_modifier=None, clone=True)
+
+    # Generate saliency maps
+    saliency_map = saliency(score, X_sample, smooth_samples=20, smooth_noise=0.1)
+
+    # Aggregate the saliency maps for all features
+    aggregated_saliency = np.mean(saliency_map[0], axis=0)
+
+    # Create a bar plot for feature attributions
+    feature_attributions = dict(zip(feature_columns, aggregated_saliency))
+    plt.figure(figsize=(10, 6))
+    plt.bar(feature_attributions.keys(), feature_attributions.values(), color='skyblue')
+    plt.xticks(rotation=45, ha='right', fontsize=10)
+    plt.ylabel("Saliency Attribution")
+    plt.title("Feature Importances (Saliency)", fontsize=14)
+    plt.tight_layout()
+
+    # Save the visualization
+    plt.savefig(output_path, dpi=300)
     plt.close()
+    print(f"Visualization saved to {output_path}")
 
-    shap.summary_plot(shap_values, X_test_sample, feature_names=feature_columns)
-    plt.savefig('shap_summary.png')
-    plt.close()
-    print("SHAP analysis completed. Visualizations saved.")
+    # Print attributions for logging
+    print("\nFeature Importance (Saliency):")
+    for feature, attribution in feature_attributions.items():
+        print(f"{feature}: {attribution:.4f}")
 
 
 def save_model(model, file_path):
@@ -191,7 +214,7 @@ def load_trained_model(file_path):
 def main():
     """Main function to train, evaluate, or analyze the model."""
     data_path = 'processed_data.pkl'
-    model_path = 'dnn_model.h5'
+    model_path = 'dnn_model.hd5'
 
     # Load data
     X, y, feature_columns = load_and_preprocess_data(data_path)
@@ -210,8 +233,9 @@ def main():
     # Evaluate model
     evaluate_model(model, X_test, y_test)
 
-    # Perform SHAP analysis
-    perform_shap_analysis(model, X_train, X_test, feature_columns)
+    # Use a single sample for visualization
+    X_sample = X_train.iloc[:1].values  # Extract the first example from the training set
+    visualize_with_tf_keras_vis(model, X_sample, feature_columns, output_path="tf_keras_vis_visualization.png")
 
 
 if __name__ == "__main__":
