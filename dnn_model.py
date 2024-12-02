@@ -139,6 +139,7 @@ def load_trained_model(file_path):
 if __name__ == "__main__":
     data_path = 'processed_data.pkl'
     model_path = 'dnn_model.keras'
+    evaluate = False
 
     # Load data
     X, y, feature_columns = load_and_preprocess_data(data_path)
@@ -155,7 +156,8 @@ if __name__ == "__main__":
         save_model(model, model_path)
 
     # Evaluate model
-    evaluate_model(model, X_test, y_test)
+    if evaluate:
+        evaluate_model(model, X_test, y_test)
 
 
 
