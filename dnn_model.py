@@ -18,8 +18,7 @@ from keras.models import Sequential, load_model
 from keras.layers import Dense, InputLayer
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
-from vis.visualization import visualize_saliency
-from vis.utils import utils
+import shap
 import os
 
 
@@ -151,44 +150,41 @@ def evaluate_model(model, X_test, y_test):
     plt.close()
 
 
-def generate_saliency_map(model_path, X_data, sample_index, layer_name, class_index, output_path):
+def perform_shap_analysis(model, X_train, X_test, feature_columns):
     """
-    Generate and save a saliency map for a given sample.
+    Perform SHAP analysis on the DNN model to explain feature importance.
 
-    Parameters:
-    - model_path (str): Path to the trained model file.
-    - X_data (np.ndarray): Dataset from which the sample is selected.
-    - sample_index (int): Index of the sample to visualize.
-    - layer_name (str): Name of the layer to analyze.
-    - class_index (int): Index of the class for which saliency is computed.
-    - output_path (str): Path to save the generated saliency map.
+    Args:
+        model: Trained TensorFlow/Keras model.
+        X_train: Training data.
+        X_test: Test data.
+        feature_columns: List of feature names.
 
     Returns:
-    - None
+        None. Saves SHAP visualizations to files.
     """
-    print(f"Loading model from {model_path}...")
-    model = load_model(model_path)
+    print("Performing SHAP analysis...")
 
-    print(f"Preparing layer modifications for saliency visualization...")
-    layer_idx = utils.find_layer_idx(model, layer_name)
+    # Sample a subset of data for computational efficiency
+    X_sample = X_test.sample(n=min(1000, len(X_test)), random_state=42)
 
-    # Optional: Swap activation to linear for better gradient calculation
-    model.layers[layer_idx].activation = None
-    model = utils.apply_modifications(model)
+    # Create SHAP explainer
+    explainer = shap.GradientExplainer(model, X_train.values)
 
-    print(f"Generating saliency map for sample {sample_index}, class {class_index}...")
-    sample_input = X_data[sample_index].reshape(1, -1)
-    saliency_map = visualize_saliency(model, layer_idx, filter_indices=class_index, seed_input=sample_input)
+    # Compute SHAP values for the test sample
+    shap_values = explainer.shap_values(X_sample.values)
 
-    print(f"Plotting and saving saliency map to {output_path}...")
-    plt.figure(figsize=(10, 8))
-    plt.title(f'Saliency Map for Sample {sample_index}', fontsize=16)
-    plt.imshow(saliency_map, cmap='viridis')
-    plt.axis('off')
-    plt.colorbar()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    # Plot summary bar graph
+    shap.summary_plot(shap_values, X_sample, feature_names=feature_columns, plot_type="bar")
+    plt.savefig("shap_summary_bar.png")
     plt.close()
-    print(f"Saliency map saved to {output_path}.")
+
+    # Plot detailed summary graph
+    shap.summary_plot(shap_values, X_sample, feature_names=feature_columns)
+    plt.savefig("shap_summary.png")
+    plt.close()
+
+    print("SHAP analysis completed. Visualizations saved.")
 
 
 def save_model(model, file_path):
@@ -228,15 +224,8 @@ def main():
     # Evaluate model
     evaluate_model(model, X_test, y_test)
 
-    # Generate saliency map for a specific sample
-    generate_saliency_map(
-        model_path=model_path,
-        X_data=X_test,
-        sample_index=0,  # Example: First test sample
-        layer_name='dense_2',  # Adjust based on your architecture
-        class_index=1,  # Example: Fire class
-        output_path=saliency_output_path
-    )
+    # Perform SHAP analysis
+    perform_shap_analysis(model, X_train, X_test, feature_columns)
 
     if __name__ == "__main__":
         main()
