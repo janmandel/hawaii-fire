@@ -199,10 +199,9 @@ def load_trained_model(file_path):
     print(f"Loading model from {file_path}...")
     return load_model(file_path)
 
-
-# --- Main Function ---
-def main():
-    """Main function to train, evaluate, or analyze the model."""
+#"""Main function to train, evaluate, and analyze the model."""
+# Main Execution
+if __name__ == "__main__"
     data_path = 'processed_data.pkl'
     model_path = 'dnn_model.hd5'
     saliency_output_path = 'saliency_map_sample_0.png'
@@ -227,5 +226,4 @@ def main():
     # Perform SHAP analysis
     perform_shap_analysis(model, X_train, X_test, feature_columns)
 
-    if __name__ == "__main__":
-        main()
+
