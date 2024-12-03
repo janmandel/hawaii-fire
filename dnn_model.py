@@ -146,12 +146,8 @@ def integrated_gradients(model, baseline, input_data, steps=50):
         np.ndarray: Integrated gradients for each feature.
     """
     print("Computing Integrated Gradients...")
-    # Scale inputs from baseline to input_data
-    scaled_inputs = [
-        baseline + (float(i) / steps) * (input_data - baseline)
-        for i in range(steps + 1)
-    ]
-    scaled_inputs = np.array(scaled_inputs)
+    # Generate scaled inputs
+    scaled_inputs = np.linspace(baseline, input_data, steps).reshape(steps, -1)
 
     # Convert inputs to tensors
     scaled_inputs = tf.convert_to_tensor(scaled_inputs, dtype=tf.float32)
