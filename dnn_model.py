@@ -163,9 +163,9 @@ def integrated_gradients(model, baseline, input_data, steps=50):
     avg_gradients = tf.reduce_mean(gradients, axis=0).numpy()
 
     # Compute integrated gradients
-    integrated_gradients = (input_data - baseline) * avg_gradients
+    int_grad_comp = (input_data - baseline) * avg_gradients
 
-    return integrated_gradients
+    return int_grad_comp
 
 
 def interpret_features_class_specific(model, X, y, feature_columns, steps=50):
