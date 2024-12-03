@@ -9,7 +9,6 @@ import rasterio
 from rasterio.plot import show
 from pyproj import Transformer
 
-
 # --- Utility Functions ---
 def load_trained_model(file_path):
     """Load a previously trained model."""
@@ -127,7 +126,7 @@ if __name__ == "__main__":
         exit()
 
     # Load data, evaluate model and add to dataframe the probabilities a fire occurred
-    df_prob = load_and_process_data(data_path)
+    df_prob = load_and_process_data(data_path, model)
     save = False
     if save:
         # Save the updated DataFrame for further use
