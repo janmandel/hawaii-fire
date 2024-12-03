@@ -182,19 +182,27 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
     # Replace nodata values with NaN
     if fuelmod_nodata is not None:
         fuelmod_data = np.where(fuelmod_data == fuelmod_nodata, np.nan, fuelmod_data)
-    else:
-        fuelmod_data = fuelmod_data.astype(float)  # Ensure it's float to hold NaNs
 
     # Load VAT file and map pixel values to vegetation classes
     vat_df = pd.DataFrame(iter(DBF(fuelvat_path)))
     value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
 
-    # Map fuelmod values to class names
-    fuel_classes = np.vectorize(value_to_class.get)(fuelmod_data)
+    # Define a mapping function that handles NaN values
+    def map_value_to_class(value):
+        if np.isnan(value):
+            return 'NoData'
+        else:
+            return value_to_class.get(value, 'Unknown')
 
-    # Define valid and invalid fuel categories
-    invalid_fuel_categories = ['Barren', 'Water', 'Urban', 'Fill-NoData']
-    valid_land_mask = ~np.isin(fuel_classes, invalid_fuel_categories) & ~np.isnan(fuel_classes)
+    # Apply the mapping function to the fuelmod data
+    map_func = np.vectorize(map_value_to_class)
+    fuel_classes = map_func(fuelmod_data)
+
+    # Define invalid fuel categories
+    invalid_fuel_categories = ['Barren', 'Water', 'Urban', 'Fill-NoData', 'NoData', 'Unknown']
+
+    # Create the valid land mask
+    valid_land_mask = ~np.isin(fuel_classes, invalid_fuel_categories)
 
     # Transform lon/lat to raster coordinates
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
