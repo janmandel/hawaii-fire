@@ -56,6 +56,38 @@ def load_and_process_data(file_path, model):
     return df
 
 
+def add_geographic_ticks(ax, raster_crs, extent, num_ticks=6, fontsize=14):
+    """
+    Add geographic ticks (latitude and longitude) to a plot.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis to add the geographic ticks.
+        raster_crs (str): The CRS of the raster, e.g., 'EPSG:32633'.
+        extent (list): The extent of the raster in the format [xmin, xmax, ymin, ymax].
+        num_ticks (int): Number of ticks to generate along each axis. Default is 6.
+        fontsize (int): Font size for tick labels. Default is 14.
+    """
+    xmin, xmax, ymin, ymax = extent
+    transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
+
+    # Generate tick positions in raster CRS
+    xticks_raster = np.linspace(xmin, xmax, num=num_ticks)
+    yticks_raster = np.linspace(ymin, ymax, num=num_ticks)
+
+    # Transform tick positions to WGS84
+    xticks_geo, _ = transformer.transform(xticks_raster, np.full_like(xticks_raster, ymin))
+    _, yticks_geo = transformer.transform(np.full_like(yticks_raster, xmin), yticks_raster)
+
+    # Set ticks and labels on the axis
+    ax.set_xticks(xticks_raster)
+    ax.set_xticklabels([f"{lon:.2f}°" for lon in xticks_geo], fontsize=fontsize)
+    ax.set_yticks(yticks_raster)
+    ax.set_yticklabels([f"{lat:.2f}°" for lat in yticks_geo], fontsize=fontsize)
+
+    # Add axis labels
+    ax.set_xlabel('Longitude', fontsize=fontsize + 4)
+    ax.set_ylabel('Latitude', fontsize=fontsize + 4)
+
 def plot_fire_occurrences(fire_df, raster_path, output_path):
     """
     Plots fire occurrence points from the DataFrame on a raster map.
@@ -71,6 +103,7 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
         raster_transform = raster.transform
         raster_crs = raster.crs
         island_nodata = raster.nodata
+        raster_extent = [raster.bounds.left, raster.bounds.right, raster.bounds.bottom, raster.bounds.top]
 
     # Mask NoData values to only show the island
     island_data_masked = np.ma.masked_where(island_data == island_nodata, island_data)
@@ -82,7 +115,7 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     raster_x, raster_y = transformer.transform(fire_lon, fire_lat)
 
     # Plot the island outline and fire occurrence points
-    fig, ax = plt.subplots(figsize=(15, 10))
+    fig, ax = plt.subplots(figsize=(20, 15))
 
     # Plot the island shape
     show(
@@ -96,15 +129,19 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     # Overlay fire points
     ax.scatter(raster_x, raster_y, color='red', s=10, label="Fire Points")
 
+    # Add geographic ticks
+    add_geographic_ticks(ax, raster_crs, raster_extent, num_ticks=6, fontsize=16)
+
     # Add title, labels, and legend
-    ax.set_title("Fire Occurrence Points on Hawai'i Island from 2011-2024", fontsize=16)
-    ax.legend(fontsize=12, loc='lower right')
+    ax.set_title("Fire Occurrence Points on Hawai'i Island from 2011-2024 (n = 1976)", fontsize=30)
+    ax.legend(fontsize=14, loc='lower right')
 
     # Save and show the plot
     plt.savefig(output_path, dpi=300)
+    print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
-#"""Main function to train, evaluate, and analyze the model."""
+#"""Main function to implement the model."""
 # Main Execution
 if __name__ == "__main__":
     data_path = 'processed_data.pkl'
