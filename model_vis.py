@@ -50,14 +50,7 @@ def load_and_process_data(file_path, model):
     df['fire_probability'] = probabilities
 
     # Compute statistics
-    min_prob = df['fire_probability'].min()
-    mean_prob = df['fire_probability'].mean()
-    max_prob = df['fire_probability'].max()
-
-    # Print the results
-    print(f"Minimum fire probability: {min_prob}")
-    print(f"Mean fire probability: {mean_prob}")
-    print(f"Maximum fire probability: {max_prob}")
+    print(df['fire_probability'].describe())
 
     print("Probabilities added to the DataFrame.")
     return df
@@ -77,7 +70,6 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
         island_data = raster.read(1)  # Read raster data
         raster_transform = raster.transform
         raster_crs = raster.crs
-        raster_extent = [raster.bounds.left, raster.bounds.right, raster.bounds.bottom, raster.bounds.top]
         island_nodata = raster.nodata
 
     # Mask NoData values to only show the island
@@ -108,7 +100,6 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     ax.set_title("Fire Occurrence Points on Hawai'i Island from 2011-2024", fontsize=16)
     ax.legend(fontsize=12, loc='lower right')
 
-
     print(f"Map saved to {output_path}")
 
 #"""Main function to train, evaluate, and analyze the model."""
@@ -126,22 +117,26 @@ if __name__ == "__main__":
         exit()
 
     # Load data, evaluate model and add to dataframe the probabilities a fire occurred
-    df_prob = load_and_process_data(data_path, model)
-    save = False
-    if save:
-        # Save the updated DataFrame for further use
-        output_path = 'processed_data_with_probabilities.pkl'
-        df_prob.to_pickle(output_path)
-        print(f"Updated DataFrame saved to {output_path}")
+    df_prob_path = 'processed_data_with_probabilities.pkl'
+    save = True
+    if os.path.exists(df_prob_path):
+        print("Required dataframe found, moving on to plotting...")
+    else:
+        print("Creating the required dataframe...")
+        df_prob = load_and_process_data(data_path, model)
+        if save:
+            # Save the updated DataFrame for further use
+            df_prob.to_pickle(df_prob_path)
+            print(f"Updated DataFrame saved to {df_prob_path}")
 
-    # # Create the fire inventory map
-    # fire_map_path = 'fire_map.png'
-    # base_dir = os.path.join('/', 'home', 'spearsty', 'p', 'data')
-    # raster_path = os.path.join(base_dir, 'feat', 'landfire', 'top','LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif')
-    # if os.path.exists(fire_map_path):
-    #     print("Fire inventory map exists in current directory, exiting...")
-    # else:
-    #     print("Creating the fire inventory map...")
-    #     plot_fire_occurrences(df_fire_samples, raster_path, fire_map_path)
+    # Create the fire inventory map
+    fire_map_path = 'fire_map.png'
+    base_dir = os.path.join('/', 'home', 'spearsty', 'p', 'data')
+    raster_path = os.path.join(base_dir, 'feat', 'landfire', 'top','LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif')
+    if os.path.exists(fire_map_path):
+        print("Fire inventory map exists in current directory, exiting...")
+    else:
+        print("Creating the fire inventory map...")
+        plot_fire_occurrences(df_fire_samples, raster_path, fire_map_path)
 
 
