@@ -141,6 +141,112 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
+def create_fire_susceptibility_map(df_prob, raster_path, output_image_path):
+    """
+    Create and save a fire susceptibility map overlaid on the island outline.
+
+    Parameters:
+    - df_prob: DataFrame containing 'lon', 'lat', 'fire_probability', and other columns.
+    - raster_path: Path to a raster file to get raster dimensions and transformation.
+    - output_image_path: Path to save the output fire susceptibility PNG image.
+    """
+
+    # Load the raster to get affine transformation and dimensions
+    with rasterio.open(raster_path) as src:
+        island_data = src.read(1)  # Read raster data
+        raster_transform = src.transform
+        raster_crs = src.crs
+        raster_width = src.width
+        raster_height = src.height
+        island_nodata = src.nodata
+        raster_extent = [src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top]
+
+    # Mask NoData values to only show the island
+    island_mask = island_data != island_nodata
+
+    # Transform lon/lat to raster coordinates
+    transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+    x_coords, y_coords = transformer.transform(df_prob['lon'].values, df_prob['lat'].values)
+
+    # Invert the affine transformation to get pixel indices
+    inv_transform = ~raster_transform
+    col_indices, row_indices = inv_transform * (x_coords, y_coords)
+    col_indices = col_indices.astype(int)
+    row_indices = row_indices.astype(int)
+
+    # Ensure indices are within the raster dimensions
+    valid_mask = (
+            (row_indices >= 0) & (row_indices < raster_height) &
+            (col_indices >= 0) & (col_indices < raster_width)
+    )
+    if not valid_mask.all():
+        print("Warning: Some row or column indices are out of bounds and will be ignored.")
+    # Filter the data to valid indices
+    row_indices = row_indices[valid_mask]
+    col_indices = col_indices[valid_mask]
+    probabilities = df_prob['fire_probability'].values[valid_mask]
+
+    # Create a DataFrame with row, col, and probabilities
+    df_cells = pd.DataFrame({
+        'row': row_indices,
+        'col': col_indices,
+        'fire_probability': probabilities
+    })
+
+    # Aggregate probabilities for each cell by averaging
+    df_cell_probs = df_cells.groupby(['row', 'col'])['fire_probability'].mean().reset_index()
+
+    # Create an empty array to hold the susceptibility values
+    susceptibility_array = np.full((raster_height, raster_width), np.nan, dtype=np.float32)
+
+    # Assign aggregated probabilities to the array
+    susceptibility_array[df_cell_probs['row'], df_cell_probs['col']] = df_cell_probs['fire_probability']
+
+    # Mask out areas where there is no data (e.g., ocean)
+    susceptibility_array = np.ma.masked_where(~island_mask, susceptibility_array)
+
+    # Report statistics
+    total_valid_cells = island_mask.sum()
+    cells_with_probabilities = np.isfinite(susceptibility_array).sum()
+    cells_without_probabilities = total_valid_cells - cells_with_probabilities
+    print(f"Total valid cells on island: {total_valid_cells}")
+    print(f"Cells with assigned probabilities: {cells_with_probabilities}")
+    print(f"Cells without assigned probabilities: {cells_without_probabilities}")
+
+    # Plot and save the fire susceptibility map overlaid on the island outline
+    fig, ax = plt.subplots(figsize=(20, 15))
+
+    # Plot the island base map
+    show(
+        island_data,
+        transform=raster_transform,
+        ax=ax,
+        cmap='Greys',
+        title="Fire Susceptibility Map over Hawai'i Island"
+    )
+
+    # Overlay the susceptibility map with transparency
+    cax = ax.imshow(
+        susceptibility_array,
+        extent=raster_extent,
+        origin='upper',
+        cmap='hot',  # Choose an appropriate colormap
+        alpha=0.6,  # Adjust alpha for transparency
+        interpolation='none'
+    )
+
+    # Add colorbar
+    cbar = plt.colorbar(cax, ax=ax, fraction=0.036, pad=0.04)
+    cbar.set_label('Fire Probability', fontsize=20)
+
+    # Add geographic ticks
+    add_geographic_ticks(ax, raster_crs, raster_extent, num_ticks=6, fontsize=16)
+
+    # Save and show the plot
+    plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
+    print(f"Fire susceptibility map saved as {output_image_path}")
+    plt.show()
+
 #"""Main function to implement the model."""
 # Main Execution
 if __name__ == "__main__":
@@ -181,3 +287,11 @@ if __name__ == "__main__":
         print("Creating the fire inventory map...")
         df_fire = df_prob[df_prob['label'] == 1]
         plot_fire_occurrences(df_fire, raster_path, fire_map_path)
+
+    # Create the fire susceptibility map
+    susceptibility_map_path = 'fire_susceptibility_map.png'
+    if os.path.exists(susceptibility_map_path):
+        print("Fire susceptibility map exists in current directory, hello world!")
+    else:
+        print("Creating the fire susceptibility map...")
+        create_fire_susceptibility_map(df_prob, raster_path, susceptibility_map_path)
