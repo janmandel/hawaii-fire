@@ -167,38 +167,73 @@ def integrated_gradients(model, baseline, input_data, steps=50):
 
     return integrated_gradients
 
-def interpret_features(model, X_train, feature_columns):
-    """Interpret feature importance using Integrated Gradients."""
-    # Convert X_train to NumPy array for direct row access
-    X_train_array = X_train.to_numpy()
 
-    # Baseline: Mean of training data
-    baseline = np.mean(X_train_array, axis=0)
+def interpret_features_class_specific(model, X, y, feature_columns, steps=50):
+    """
+    Perform class-specific Integrated Gradients analysis.
 
-    # Example input: First sample from the dataset
-    input_data = X_train_array[0].reshape(1, -1)
+    Args:
+        model (keras.Model): The trained model.
+        X (pd.DataFrame): Feature matrix (scaled).
+        y (pd.Series): Target labels.
+        feature_columns (list): List of feature names.
+        steps (int): Number of steps for IG approximation. Default is 50.
 
-    # Compute IG
-    ig = integrated_gradients(model, baseline, input_data)
+    Returns:
+        dict: Weighted feature importances.
+    """
+    # Convert X to NumPy array for direct row access
+    X_array = X.to_numpy()
+    y_array = y.to_numpy()
 
-    # Display results
-    feature_importances = dict(zip(feature_columns, ig.flatten()))
-    print("\nFeature Importances:")
+    # Separate fire and non-fire samples
+    fire_indices = y_array == 1
+    non_fire_indices = y_array == 0
+
+    X_fire = X_array[fire_indices]
+    X_non_fire = X_array[non_fire_indices]
+
+    # Baselines (mean of the non-fire and fire samples)
+    baseline_non_fire = np.mean(X_non_fire, axis=0)
+    baseline_fire = np.mean(X_fire, axis=0)
+
+    def compute_ig_for_class(baseline, inputs):
+        igs = [integrated_gradients(model, baseline, x, steps=steps) for x in inputs]
+        return np.mean(igs, axis=0)
+
+    # Compute IG for each class
+    print("Computing IG for fire samples...")
+    ig_fire = compute_ig_for_class(baseline_fire, X_fire)
+
+    print("Computing IG for non-fire samples...")
+    ig_non_fire = compute_ig_for_class(baseline_non_fire, X_non_fire)
+
+    # Combine using class weights
+    fire_weight = len(fire_indices) / len(y)
+    non_fire_weight = len(non_fire_indices) / len(y)
+
+    weighted_importance = fire_weight * ig_fire + non_fire_weight * ig_non_fire
+
+    # Display and visualize results
+    feature_importances = dict(zip(feature_columns, weighted_importance))
+    print("\nWeighted Feature Importances:")
     for feature, importance in feature_importances.items():
         print(f"{feature}: {importance:.4f}")
 
-    # Sort and visualize
+    # Sort for visualization
     sorted_features = sorted(feature_importances, key=feature_importances.get, reverse=True)
     sorted_importances = [feature_importances[feature] for feature in sorted_features]
 
     plt.figure(figsize=(12, 6))
     plt.bar(sorted_features, sorted_importances)
     plt.xticks(rotation=45, ha='right')
-    plt.title("Feature Importances via Integrated Gradients")
+    plt.title("Weighted Feature Importances via Integrated Gradients")
     plt.ylabel("Importance")
     plt.tight_layout()
-    plt.savefig("feature_importances.png")
+    plt.savefig("weighted_feature_importances.png")
     plt.show()
+
+    return feature_importances
 
 #"""Main function to train, evaluate, and analyze the model."""
 # Main Execution
@@ -226,7 +261,7 @@ if __name__ == "__main__":
         evaluate_model(model, X_test, y_test)
 
     # Interpret features
-    interpret_features(model, X_train, feature_columns)
+    interpret_features_class_specific(model, X_train, y_train, feature_columns)
 
 
 
