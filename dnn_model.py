@@ -84,7 +84,6 @@ def train_dnn_model(model, X_train, y_train, validation_split=0.2, epochs=100, b
     print("Training completed.")
     return history
 
-
 def evaluate_model(model, X_test, y_test):
     """Evaluate the trained model and visualize performance metrics."""
     print("Evaluating model...")
@@ -128,11 +127,79 @@ def save_model(model, file_path):
     model.save(file_path)
     print("Model saved.")
 
-
 def load_trained_model(file_path):
     """Load a previously trained model."""
     print(f"Loading model from {file_path}...")
     return load_model(file_path)
+
+def integrated_gradients(model, baseline, input_data, steps=50):
+    """
+    Compute Integrated Gradients for a model and input data.
+
+    Args:
+        model (keras.Model): The trained model.
+        baseline (np.ndarray): Baseline input to compare against (e.g., zeros or mean values).
+        input_data (np.ndarray): Input data for which to compute gradients.
+        steps (int): Number of steps for the IG approximation.
+
+    Returns:
+        np.ndarray: Integrated gradients for each feature.
+    """
+    print("Computing Integrated Gradients...")
+    # Scale inputs from baseline to input_data
+    scaled_inputs = [
+        baseline + (float(i) / steps) * (input_data - baseline)
+        for i in range(steps + 1)
+    ]
+    scaled_inputs = np.array(scaled_inputs)
+
+    # Convert inputs to tensors
+    scaled_inputs = tf.convert_to_tensor(scaled_inputs, dtype=tf.float32)
+
+    with tf.GradientTape() as tape:
+        tape.watch(scaled_inputs)
+        predictions = model(scaled_inputs)
+
+    # Get gradients
+    gradients = tape.gradient(predictions, scaled_inputs)
+
+    # Compute average gradients
+    avg_gradients = tf.reduce_mean(gradients, axis=0).numpy()
+
+    # Compute integrated gradients
+    integrated_gradients = (input_data - baseline) * avg_gradients
+
+    return integrated_gradients
+
+def interpret_features(model, X_train, feature_columns):
+    """Interpret feature importance using Integrated Gradients."""
+    # Baseline: Mean of training data
+    baseline = np.mean(X_train, axis=0)
+
+    # Example input: First sample from the dataset
+    input_data = X_train[0].reshape(1, -1)
+
+    # Compute IG
+    ig = integrated_gradients(model, baseline, input_data)
+
+    # Display results
+    feature_importances = dict(zip(feature_columns, ig.flatten()))
+    print("\nFeature Importances:")
+    for feature, importance in feature_importances.items():
+        print(f"{feature}: {importance:.4f}")
+
+    # Sort and visualize
+    sorted_features = sorted(feature_importances, key=feature_importances.get, reverse=True)
+    sorted_importances = [feature_importances[feature] for feature in sorted_features]
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(sorted_features, sorted_importances)
+    plt.xticks(rotation=45, ha='right')
+    plt.title("Feature Importances via Integrated Gradients")
+    plt.ylabel("Importance")
+    plt.tight_layout()
+    plt.savefig("feature_importances.png")
+    plt.show()
 
 #"""Main function to train, evaluate, and analyze the model."""
 # Main Execution
@@ -158,6 +225,9 @@ if __name__ == "__main__":
     # Evaluate model
     if evaluate:
         evaluate_model(model, X_test, y_test)
+
+    # Interpret features
+    interpret_features(model, X_train, feature_columns)
 
 
 
