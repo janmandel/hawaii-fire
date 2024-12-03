@@ -142,28 +142,59 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
-def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, interpolate_missing=True):
+def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_path, output_image_path, interpolate_missing=False):
     """
-    Create and save a fire susceptibility map overlaid on the island outline.
+    Create and save a fire susceptibility map overlaid on the island outline,
+    with optional interpolation for cells without assigned probabilities.
+    Interpolation is only performed over valid land areas defined by the fuelmod raster.
 
     Parameters:
     - df_prob: DataFrame containing 'lon', 'lat', 'fire_probability', and other columns.
-    - raster_path: Path to a raster file to get raster dimensions and transformation.
+    - raster_path: Path to a raster file for background (e.g., slope or elevation).
+    - fuelmod_path: Path to the fuelmod raster file.
+    - fuelvat_path: Path to the VAT file associated with the fuelmod raster.
     - output_image_path: Path to save the output fire susceptibility PNG image.
+    - interpolate_missing: Boolean flag to interpolate probabilities for cells without assigned probabilities.
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from pyproj import Transformer
+    import rasterio
+    from rasterio.plot import show
+    from dbfread import DBF
+    from scipy.interpolate import griddata
 
-    # Load the raster to get affine transformation and dimensions
+    # Load the background raster to get affine transformation and dimensions
     with rasterio.open(raster_path) as src:
-        island_data = src.read(1)  # Read raster data
+        background_data = src.read(1)  # Read raster data
         raster_transform = src.transform
         raster_crs = src.crs
         raster_width = src.width
         raster_height = src.height
-        island_nodata = src.nodata
+        background_nodata = src.nodata
         raster_extent = [src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top]
 
-    # Mask NoData values to only show the island
-    island_mask = island_data != island_nodata
+    # Load the fuelmod raster
+    with rasterio.open(fuelmod_path) as fuelmod_dataset:
+        fuelmod_data = fuelmod_dataset.read(1)
+        fuelmod_nodata = fuelmod_dataset.nodata
+
+    # Replace nodata values with NaN
+    if fuelmod_nodata is not None:
+        fuelmod_data = np.where(fuelmod_data == fuelmod_nodata, np.nan, fuelmod_data)
+    else:
+        fuelmod_data = fuelmod_data.astype(float)  # Ensure it's float to hold NaNs
+
+    # Load VAT file and map pixel values to vegetation classes
+    vat_df = pd.DataFrame(iter(DBF(fuelvat_path)))
+    value_to_class = dict(zip(vat_df['VALUE'], vat_df['FBFM13']))
+
+    # Map fuelmod values to class names
+    fuel_classes = np.vectorize(value_to_class.get)(fuelmod_data)
+
+    # Define valid and invalid fuel categories
+    invalid_fuel_categories = ['Barren', 'Water', 'Urban', 'Fill-NoData']
+    valid_land_mask = ~np.isin(fuel_classes, invalid_fuel_categories) & ~np.isnan(fuel_classes)
 
     # Transform lon/lat to raster coordinates
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
@@ -176,16 +207,16 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, inte
     row_indices = row_indices.astype(int)
 
     # Ensure indices are within the raster dimensions
-    valid_mask = (
-            (row_indices >= 0) & (row_indices < raster_height) &
-            (col_indices >= 0) & (col_indices < raster_width)
+    valid_indices_mask = (
+        (row_indices >= 0) & (row_indices < raster_height) &
+        (col_indices >= 0) & (col_indices < raster_width)
     )
-    if not valid_mask.all():
+    if not valid_indices_mask.all():
         print("Warning: Some row or column indices are out of bounds and will be ignored.")
     # Filter the data to valid indices
-    row_indices = row_indices[valid_mask]
-    col_indices = col_indices[valid_mask]
-    probabilities = df_prob['fire_probability'].values[valid_mask]
+    row_indices = row_indices[valid_indices_mask]
+    col_indices = col_indices[valid_indices_mask]
+    probabilities = df_prob['fire_probability'].values[valid_indices_mask]
 
     # Create a DataFrame with row, col, and probabilities
     df_cells = pd.DataFrame({
@@ -203,57 +234,54 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, inte
     # Assign aggregated probabilities to the array
     susceptibility_array[df_cell_probs['row'], df_cell_probs['col']] = df_cell_probs['fire_probability']
 
-    # Interpolate missing values if flag is set
+    # Create a mask for valid land cells without assigned probabilities
+    mask_to_interpolate = valid_land_mask & np.isnan(susceptibility_array)
+
     if interpolate_missing:
         print("Interpolating missing probabilities for valid land cells...")
         # Prepare data for interpolation
         known_points = np.array((df_cell_probs['col'], df_cell_probs['row'])).T
         known_values = df_cell_probs['fire_probability'].values
 
-        # Generate grid coordinates
-        grid_x, grid_y = np.meshgrid(np.arange(raster_width), np.arange(raster_height))
-
-        # Mask to interpolate only over valid land cells without data
-        mask_to_interpolate = np.isnan(susceptibility_array) & island_mask
-
         # Points to interpolate
+        grid_x, grid_y = np.meshgrid(np.arange(raster_width), np.arange(raster_height))
         unknown_points = np.array((grid_x[mask_to_interpolate], grid_y[mask_to_interpolate])).T
 
-        # Perform interpolation using Inverse Distance Weighting (IDW)
+        # Perform interpolation using the specified method
         interpolated_values = griddata(
             known_points,
             known_values,
             unknown_points,
-            method='nearest'  # You can choose 'nearest', 'linear', or 'cubic'
+            method='nearest'  # Options: 'nearest', 'linear', 'cubic'
         )
 
         # Assign interpolated values back to the susceptibility array
         susceptibility_array[mask_to_interpolate] = interpolated_values
 
-        # After interpolation, there might still be NaNs (e.g., isolated areas), so we can fill them if needed
-        remaining_nans = np.isnan(susceptibility_array) & island_mask
-        if remaining_nans.any():
-            print(f"Filling {remaining_nans.sum()} remaining NaN values with the mean probability.")
-            mean_probability = np.nanmean(susceptibility_array)
-            susceptibility_array[remaining_nans] = mean_probability
+        # # Handle any remaining NaNs if necessary
+        # remaining_nans = np.isnan(susceptibility_array) & valid_land_mask
+        # if remaining_nans.any():
+        #     print(f"Filling {remaining_nans.sum()} remaining NaN values with the mean probability.")
+        #     mean_probability = np.nanmean(susceptibility_array)
+        #     susceptibility_array[remaining_nans] = mean_probability
 
-    # Mask out areas where there is no data (e.g., ocean)
-    susceptibility_array = np.ma.masked_where(~island_mask, susceptibility_array)
+    # Mask out areas outside valid land
+    susceptibility_array = np.ma.masked_where(~valid_land_mask, susceptibility_array)
 
     # Report statistics
-    total_valid_cells = island_mask.sum()
+    total_valid_cells = valid_land_mask.sum()
     cells_with_probabilities = np.isfinite(susceptibility_array).sum()
     cells_without_probabilities = total_valid_cells - cells_with_probabilities
-    print(f"Total valid cells on island: {total_valid_cells}")
+    print(f"Total valid land cells: {total_valid_cells}")
     print(f"Cells with assigned probabilities: {cells_with_probabilities}")
     print(f"Cells without assigned probabilities: {cells_without_probabilities}")
 
-    # Plot and save the fire susceptibility map overlaid on the island outline
+    # Plot and save the fire susceptibility map overlaid on the background raster
     fig, ax = plt.subplots(figsize=(20, 15))
 
-    # Plot the island base map
+    # Plot the background raster
     show(
-        island_data,
+        background_data,
         transform=raster_transform,
         ax=ax,
         cmap='Greys',
@@ -265,8 +293,8 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, inte
         susceptibility_array,
         extent=raster_extent,
         origin='upper',
-        cmap='hot',  # Choose an appropriate colormap
-        alpha=0.9,  # Adjust alpha for transparency
+        cmap='hot',
+        alpha=0.8,
         interpolation='none'
     )
 
@@ -281,6 +309,7 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, inte
     plt.savefig(output_image_path, dpi=300, bbox_inches='tight')
     print(f"Fire susceptibility map saved as {output_image_path}")
     plt.show()
+
 
 #"""Main function to implement the model."""
 # Main Execution
@@ -325,8 +354,20 @@ if __name__ == "__main__":
 
     # Create the fire susceptibility map
     susceptibility_map_path = 'fire_susceptibility_map.png'
+    # Paths to the fuelmod raster and VAT file
+    fuelmod_path = os.path.join(base_dir, 'feat', 'landfire', 'fbfm13', 'LF2020_FBFM13_220_HI', 'LH20_FBFM13_220.tif')
+    fuelvat_path = os.path.join(base_dir, 'feat', 'landfire', 'fbfm13', 'LF2020_FBFM13_220_HI',
+                                'LH20_FBFM13_220.vat.dbf')
+
     if os.path.exists(susceptibility_map_path):
         print("Fire susceptibility map exists in current directory, hello world!")
     else:
         print("Creating the fire susceptibility map...")
-        create_fire_susceptibility_map(df_prob, raster_path, susceptibility_map_path)
+        create_fire_susceptibility_map(
+            df_prob,
+            raster_path,
+            fuelmod_path,
+            fuelvat_path,
+            susceptibility_map_path,
+            interpolate_missing=True  # Set to True if you want to interpolate missing values
+        )
