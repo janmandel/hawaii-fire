@@ -8,6 +8,7 @@ import os
 import rasterio
 from rasterio.plot import show
 from pyproj import Transformer
+from scipy.interpolate import griddata
 
 # --- Utility Functions ---
 def load_trained_model(file_path):
@@ -141,7 +142,7 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
-def create_fire_susceptibility_map(df_prob, raster_path, output_image_path):
+def create_fire_susceptibility_map(df_prob, raster_path, output_image_path, interpolate_missing=True):
     """
     Create and save a fire susceptibility map overlaid on the island outline.
 
@@ -202,6 +203,40 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path):
     # Assign aggregated probabilities to the array
     susceptibility_array[df_cell_probs['row'], df_cell_probs['col']] = df_cell_probs['fire_probability']
 
+    # Interpolate missing values if flag is set
+    if interpolate_missing:
+        print("Interpolating missing probabilities for valid land cells...")
+        # Prepare data for interpolation
+        known_points = np.array((df_cell_probs['col'], df_cell_probs['row'])).T
+        known_values = df_cell_probs['fire_probability'].values
+
+        # Generate grid coordinates
+        grid_x, grid_y = np.meshgrid(np.arange(raster_width), np.arange(raster_height))
+
+        # Mask to interpolate only over valid land cells without data
+        mask_to_interpolate = np.isnan(susceptibility_array) & island_mask
+
+        # Points to interpolate
+        unknown_points = np.array((grid_x[mask_to_interpolate], grid_y[mask_to_interpolate])).T
+
+        # Perform interpolation using Inverse Distance Weighting (IDW)
+        interpolated_values = griddata(
+            known_points,
+            known_values,
+            unknown_points,
+            method='nearest'  # You can choose 'nearest', 'linear', or 'cubic'
+        )
+
+        # Assign interpolated values back to the susceptibility array
+        susceptibility_array[mask_to_interpolate] = interpolated_values
+
+        # After interpolation, there might still be NaNs (e.g., isolated areas), so we can fill them if needed
+        remaining_nans = np.isnan(susceptibility_array) & island_mask
+        if remaining_nans.any():
+            print(f"Filling {remaining_nans.sum()} remaining NaN values with the mean probability.")
+            mean_probability = np.nanmean(susceptibility_array)
+            susceptibility_array[remaining_nans] = mean_probability
+
     # Mask out areas where there is no data (e.g., ocean)
     susceptibility_array = np.ma.masked_where(~island_mask, susceptibility_array)
 
@@ -231,7 +266,7 @@ def create_fire_susceptibility_map(df_prob, raster_path, output_image_path):
         extent=raster_extent,
         origin='upper',
         cmap='hot',  # Choose an appropriate colormap
-        alpha=0.6,  # Adjust alpha for transparency
+        alpha=0.9,  # Adjust alpha for transparency
         interpolation='none'
     )
 
