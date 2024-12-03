@@ -100,7 +100,9 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     ax.set_title("Fire Occurrence Points on Hawai'i Island from 2011-2024", fontsize=16)
     ax.legend(fontsize=12, loc='lower right')
 
-    print(f"Map saved to {output_path}")
+    # Save and show the plot
+    plt.savefig(output_path, dpi=300)
+    plt.show()
 
 #"""Main function to train, evaluate, and analyze the model."""
 # Main Execution
@@ -135,12 +137,10 @@ if __name__ == "__main__":
     # Create the fire inventory map
     fire_map_path = 'fire_map.png'
     base_dir = os.path.join('/', 'home', 'spearsty', 'p', 'data')
-    raster_path = os.path.join(base_dir, 'feat', 'landfire', 'top','LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif')
+    raster_path = os.path.join(base_dir, 'feat', 'landfire', 'top', 'LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif')
     if os.path.exists(fire_map_path):
         print("Fire inventory map exists in current directory, moving on...")
     else:
         print("Creating the fire inventory map...")
         df_fire = df_prob[df_prob['label'] == 1]
         plot_fire_occurrences(df_fire, raster_path, fire_map_path)
-
-
