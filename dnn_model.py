@@ -167,74 +167,108 @@ def integrated_gradients(model, baseline, input_data, steps=50):
     return int_grad_comp
 
 
-def interpret_features_class_specific(model, X, y, feature_columns, steps=50):
+def interpret_features_class_specific(model, X, y, feature_columns, steps=50, num_samples_per_class=1000, batch_size=64):
     """
-    Perform class-specific Integrated Gradients analysis.
-
+    Perform class-specific Integrated Gradients analysis with adjustments for class imbalance and computational efficiency.
     Args:
         model (keras.Model): The trained model.
         X (pd.DataFrame): Feature matrix (scaled).
         y (pd.Series): Target labels.
         feature_columns (list): List of feature names.
         steps (int): Number of steps for IG approximation. Default is 50.
-
-    Returns:
-        dict: Weighted feature importances.
+        num_samples_per_class (int): Number of samples to use from each class.
+        batch_size (int): Batch size for IG computation.
     """
-    # Convert X to NumPy array for direct row access
+    import time
+
+    # Convert X and y to NumPy arrays
     X_array = X.to_numpy()
     y_array = y.to_numpy()
 
     # Separate fire and non-fire samples
-    fire_indices = y_array == 1
-    non_fire_indices = y_array == 0
+    fire_indices = np.where(y_array == 1)[0]
+    non_fire_indices = np.where(y_array == 0)[0]
 
-    X_fire = X_array[fire_indices]
-    X_non_fire = X_array[non_fire_indices]
+    # Limit the number of samples per class
+    num_fire_samples = min(num_samples_per_class, len(fire_indices))
+    num_non_fire_samples = min(num_samples_per_class, len(non_fire_indices))
 
-    # Baselines (mean of the non-fire and fire samples)
-    baseline_non_fire = np.mean(X_non_fire, axis=0)
-    baseline_fire = np.mean(X_fire, axis=0)
+    # Randomly sample from each class
+    np.random.seed(42)
+    fire_sample_indices = np.random.choice(fire_indices, num_fire_samples, replace=False)
+    non_fire_sample_indices = np.random.choice(non_fire_indices, num_non_fire_samples, replace=False)
+
+    X_fire_sampled = X_array[fire_sample_indices]
+    X_non_fire_sampled = X_array[non_fire_sample_indices]
+
+    # Use the global mean as the baseline
+    baseline = np.mean(X_array, axis=0)
 
     print("Computing Integrated Gradients...")
 
-    def compute_ig_for_class(baseline, inputs):
-        igs = [integrated_gradients(model, baseline, x, steps=steps) for x in inputs]
+    def compute_ig_for_class(inputs):
+        igs = []
+        num_batches = int(np.ceil(len(inputs) / batch_size))
+        for i in range(num_batches):
+            batch_inputs = inputs[i * batch_size : (i + 1) * batch_size]
+            batch_size_actual = batch_inputs.shape[0]
+
+            # Generate scaled inputs for IG computation
+            scaled_inputs = np.linspace(baseline, batch_inputs, steps)
+            # Reshape to (batch_size * steps, input_dim)
+            scaled_inputs = scaled_inputs.reshape(-1, batch_inputs.shape[1])
+
+            # Convert inputs to tensors
+            scaled_inputs = tf.convert_to_tensor(scaled_inputs, dtype=tf.float32)
+
+            with tf.GradientTape() as tape:
+                tape.watch(scaled_inputs)
+                predictions = model(scaled_inputs)
+
+            # Get gradients
+            gradients = tape.gradient(predictions, scaled_inputs)
+            # Reshape gradients to (batch_size, steps, input_dim)
+            gradients = tf.reshape(gradients, (batch_size_actual, steps, -1))
+            # Average gradients across steps
+            avg_gradients = tf.reduce_mean(gradients, axis=1).numpy()
+            # Compute IG for the batch
+            ig_batch = (batch_inputs - baseline) * avg_gradients
+            igs.append(ig_batch)
+
+        # Concatenate IGs from all batches and compute mean
+        igs = np.concatenate(igs, axis=0)
         return np.mean(igs, axis=0)
 
     # Compute IG for each class
     print("Computing IG for fire samples...")
-    ig_fire = compute_ig_for_class(baseline_fire, X_fire)
+    ig_fire = compute_ig_for_class(X_fire_sampled)
 
     print("Computing IG for non-fire samples...")
-    ig_non_fire = compute_ig_for_class(baseline_non_fire, X_non_fire)
+    ig_non_fire = compute_ig_for_class(X_non_fire_sampled)
 
-    # Combine using class weights
-    fire_weight = len(fire_indices) / len(y)
-    non_fire_weight = len(non_fire_indices) / len(y)
+    # Analyze IGs separately
+    feature_importances_fire = dict(zip(feature_columns, ig_fire))
+    feature_importances_non_fire = dict(zip(feature_columns, ig_non_fire))
 
-    weighted_importance = fire_weight * ig_fire + non_fire_weight * ig_non_fire
+    # Display and visualize results for fire samples
+    print("\nFeature Importances for Fire Samples:")
+    for feature, importance in feature_importances_fire.items():
+        print(f"{feature}: {importance:.6f}")
 
-    # Display and visualize results
-    feature_importances = dict(zip(feature_columns, weighted_importance))
-    print("\nWeighted Feature Importances:")
-    for feature, importance in feature_importances.items():
-        print(f"{feature}: {importance:.4f}")
-
-    # Sort for visualization
-    sorted_features = sorted(feature_importances, key=feature_importances.get, reverse=True)
-    sorted_importances = [feature_importances[feature] for feature in sorted_features]
+    # Sort and plot for fire samples
+    sorted_features_fire = sorted(feature_importances_fire, key=feature_importances_fire.get, reverse=True)
+    sorted_importances_fire = [feature_importances_fire[feature] for feature in sorted_features_fire]
 
     plt.figure(figsize=(12, 6))
-    plt.bar(sorted_features, sorted_importances)
+    plt.bar(sorted_features_fire, sorted_importances_fire)
     plt.xticks(rotation=45, ha='right')
-    plt.title("Weighted Feature Importances via Integrated Gradients")
+    plt.title("Feature Importances for Fire Samples via Integrated Gradients")
     plt.ylabel("Importance")
     plt.tight_layout()
-    plt.savefig("weighted_feature_importances.png")
+    plt.savefig("feature_importances_fire.png")
     plt.show()
 
-    return feature_importances
+    return feature_importances_fire, feature_importances_non_fire
 
 #"""Main function to train, evaluate, and analyze the model."""
 # Main Execution
@@ -261,8 +295,16 @@ if __name__ == "__main__":
     if evaluate:
         evaluate_model(model, X_test, y_test)
 
-    # Interpret features
-    interpret_features_class_specific(model, X_train, y_train, feature_columns)
+    # Interpret features with adjusted IG method
+    feature_importances_fire, feature_importances_non_fire = interpret_features_class_specific(
+        model,
+        X_train,
+        y_train,
+        feature_columns,
+        steps=100,  # Increase steps if possible
+        num_samples_per_class=1000,  # Adjust based on computational capacity
+        batch_size=128  # Adjust based on memory capacity
+        )
 
 
 
