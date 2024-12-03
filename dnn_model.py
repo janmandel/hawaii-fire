@@ -173,11 +173,14 @@ def integrated_gradients(model, baseline, input_data, steps=50):
 
 def interpret_features(model, X_train, feature_columns):
     """Interpret feature importance using Integrated Gradients."""
+    # Convert X_train to NumPy array for direct row access
+    X_train_array = X_train.to_numpy()
+
     # Baseline: Mean of training data
-    baseline = np.mean(X_train, axis=0)
+    baseline = np.mean(X_train_array, axis=0)
 
     # Example input: First sample from the dataset
-    input_data = X_train[0].reshape(1, -1)
+    input_data = X_train_array[0].reshape(1, -1)
 
     # Compute IG
     ig = integrated_gradients(model, baseline, input_data)
