@@ -145,7 +145,6 @@ def integrated_gradients(model, baseline, input_data, steps=50):
     Returns:
         np.ndarray: Integrated gradients for each feature.
     """
-    print("Computing Integrated Gradients...")
     # Generate scaled inputs
     scaled_inputs = np.linspace(baseline, input_data, steps).reshape(steps, -1)
 
@@ -196,6 +195,8 @@ def interpret_features_class_specific(model, X, y, feature_columns, steps=50):
     # Baselines (mean of the non-fire and fire samples)
     baseline_non_fire = np.mean(X_non_fire, axis=0)
     baseline_fire = np.mean(X_fire, axis=0)
+
+    print("Computing Integrated Gradients...")
 
     def compute_ig_for_class(baseline, inputs):
         igs = [integrated_gradients(model, baseline, x, steps=steps) for x in inputs]
