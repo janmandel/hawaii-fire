@@ -120,7 +120,10 @@ if __name__ == "__main__":
     df_prob_path = 'processed_data_with_probabilities.pkl'
     save = True
     if os.path.exists(df_prob_path):
-        print("Required dataframe found, moving on to plotting...")
+        print("Required dataframe found, loading...")
+        df_prob = pd.read_pickle(df_prob_path)
+        # Compute statistics
+        print(df_prob['fire_probability'].describe())
     else:
         print("Creating the required dataframe...")
         df_prob = load_and_process_data(data_path, model)
@@ -134,9 +137,10 @@ if __name__ == "__main__":
     base_dir = os.path.join('/', 'home', 'spearsty', 'p', 'data')
     raster_path = os.path.join(base_dir, 'feat', 'landfire', 'top','LF2020_SlpP_220_HI', 'LH20_SlpP_220.tif')
     if os.path.exists(fire_map_path):
-        print("Fire inventory map exists in current directory, exiting...")
+        print("Fire inventory map exists in current directory, moving on...")
     else:
         print("Creating the fire inventory map...")
-        plot_fire_occurrences(df_fire_samples, raster_path, fire_map_path)
+        df_fire = df_prob[df_prob['label'] == 1]
+        plot_fire_occurrences(df_fire, raster_path, fire_map_path)
 
 
