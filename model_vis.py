@@ -355,9 +355,8 @@ if __name__ == "__main__":
     # Create the fire susceptibility map
     susceptibility_map_path = 'fire_susceptibility_map.png'
     # Paths to the fuelmod raster and VAT file
-    fuelmod_path = os.path.join(base_dir, 'feat', 'landfire', 'fbfm13', 'LF2020_FBFM13_220_HI', 'LH20_FBFM13_220.tif')
-    fuelvat_path = os.path.join(base_dir, 'feat', 'landfire', 'fbfm13', 'LF2020_FBFM13_220_HI',
-                                'LH20_FBFM13_220.vat.dbf')
+    fuelmod_path = os.path.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif')
+    fuelvat_path = os.path.join(base_dir, 'feat', 'landfire', 'afbfm', 'LF2022_FBFM13_230_HI', 'LH22_F13_230.tif.vat.dbf')
 
     if os.path.exists(susceptibility_map_path):
         print("Fire susceptibility map exists in current directory, hello world!")
