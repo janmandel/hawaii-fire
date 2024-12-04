@@ -267,7 +267,7 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
             known_points,
             known_values,
             unknown_points,
-            method='nearest'  # Options: 'nearest', 'linear', 'cubic'
+            method='cubic'  # Options: 'nearest', 'linear', 'cubic'
         )
 
         # Assign interpolated values back to the susceptibility array
