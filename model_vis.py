@@ -262,13 +262,33 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
         grid_x, grid_y = np.meshgrid(np.arange(raster_width), np.arange(raster_height))
         unknown_points = np.array((grid_x[mask_to_interpolate], grid_y[mask_to_interpolate])).T
 
+        # Print known and unknown points count
+        print(f"Number of known points: {len(known_points)}")
+        print(f"Number of unknown points: {len(unknown_points)}")
+
+        # Hardcoding select method for now
+        method = 'knn'
+
         # Perform interpolation using the specified method
-        interpolated_values = griddata(
-            known_points,
-            known_values,
-            unknown_points,
-            method='cubic'  # Options: 'nearest', 'linear', 'cubic'
-        )
+        if method == "griddata":
+            interpolated_values = griddata(
+                known_points,
+                known_values,
+                unknown_points,
+                method='nearest'  # Options: 'nearest', 'linear', 'cubic'
+            )
+        elif method == "knn":
+            print("Using K-Nearest Neighbors (KNN) for interpolation...")
+            from sklearn.neighbors import KNeighborsRegressor
+
+            # Set up KNN model
+            knn = KNeighborsRegressor(n_neighbors=5, weights='distance')  # Use 5 nearest neighbors
+            knn.fit(known_points, known_values)
+
+            # Predict unknown values
+            interpolated_values = knn.predict(unknown_points)
+        else:
+            raise ValueError(f"Unsupported interpolation method: {method}")
 
         # Assign interpolated values back to the susceptibility array
         susceptibility_array[mask_to_interpolate] = interpolated_values
