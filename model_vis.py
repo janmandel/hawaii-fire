@@ -203,13 +203,12 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
     max_samples_date = date_sample_counts.idxmax()
     max_samples_count = date_sample_counts.max()
 
-    print(f"Using data from {max_samples_date} with {max_samples_count} samples for mapping.")
-
     # Filter the data for the identified date
     df_prob_filtered = df_prob[df_prob['date'] == max_samples_date]
 
     if single_hour:
         df_prob = df_prob_filtered
+        print(f"Using data from {max_samples_date} with {max_samples_count} samples for mapping.")
 
     # Transform lon/lat to raster coordinates
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
