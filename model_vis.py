@@ -9,6 +9,7 @@ import rasterio
 from rasterio.plot import show
 from pyproj import Transformer
 from scipy.interpolate import griddata
+from dbfread import DBF
 
 # --- Utility Functions ---
 def load_trained_model(file_path):
@@ -142,27 +143,20 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
-def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_path, output_image_path, interpolate_missing=False):
+def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_path, output_image_path, interpolate_missing=False, single_hour=True):
     """
     Create and save a fire susceptibility map overlaid on the island outline,
     with optional interpolation for cells without assigned probabilities.
     Interpolation is only performed over valid land areas defined by the fuelmod raster.
 
     Parameters:
-    - df_prob: DataFrame containing 'lon', 'lat', 'fire_probability', and other columns.
+    - df_prob: DataFrame containing 'lon', 'lat', 'fire_probability', samples used to build model).
     - raster_path: Path to a raster file for background (e.g., slope or elevation).
     - fuelmod_path: Path to the fuelmod raster file.
     - fuelvat_path: Path to the VAT file associated with the fuelmod raster.
     - output_image_path: Path to save the output fire susceptibility PNG image.
     - interpolate_missing: Boolean flag to interpolate probabilities for cells without assigned probabilities.
     """
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from pyproj import Transformer
-    import rasterio
-    from rasterio.plot import show
-    from dbfread import DBF
-    from scipy.interpolate import griddata
 
     # Load the background raster to get affine transformation and dimensions
     with rasterio.open(raster_path) as src:
@@ -203,6 +197,19 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
 
     # Create the valid land mask
     valid_land_mask = ~np.isin(fuel_classes, invalid_fuel_categories)
+
+    # Identify the date with the maximum samples
+    date_sample_counts = df_prob.groupby('date').size()
+    max_samples_date = date_sample_counts.idxmax()
+    max_samples_count = date_sample_counts.max()
+
+    print(f"Using data from {max_samples_date} with {max_samples_count} samples for mapping.")
+
+    # Filter the data for the identified date
+    df_prob_filtered = df_prob[df_prob['date'] == max_samples_date]
+
+    if single_hour:
+        df_prob = df_prob_filtererd
 
     # Transform lon/lat to raster coordinates
     transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
@@ -266,13 +273,6 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
         # Assign interpolated values back to the susceptibility array
         susceptibility_array[mask_to_interpolate] = interpolated_values
 
-        # # Handle any remaining NaNs if necessary
-        # remaining_nans = np.isnan(susceptibility_array) & valid_land_mask
-        # if remaining_nans.any():
-        #     print(f"Filling {remaining_nans.sum()} remaining NaN values with the mean probability.")
-        #     mean_probability = np.nanmean(susceptibility_array)
-        #     susceptibility_array[remaining_nans] = mean_probability
-
     # Mask out areas outside valid land
     susceptibility_array = np.ma.masked_where(~valid_land_mask, susceptibility_array)
 
@@ -287,13 +287,18 @@ def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_p
     # Plot and save the fire susceptibility map overlaid on the background raster
     fig, ax = plt.subplots(figsize=(20, 15))
 
+    if single_hour:
+        plot_title = f"Fire Susceptibility Map for Hawai'i Island (Date: {max_samples_date})"
+    else:
+        plot_title = "Fire Susceptibility Map over Hawai'i Island"
+
     # Plot the background raster
     show(
         background_data,
         transform=raster_transform,
         ax=ax,
         cmap='Greys',
-        title="Fire Susceptibility Map over Hawai'i Island"
+        title=plot_title
     )
 
     # Overlay the susceptibility map with transparency
@@ -376,5 +381,6 @@ if __name__ == "__main__":
             fuelmod_path,
             fuelvat_path,
             susceptibility_map_path,
-            interpolate_missing=True  # Set to True if you want to interpolate missing values
+            interpolate_missing=True,  # Set to True if you want to interpolate missing values
+            single_hour=True
         )
