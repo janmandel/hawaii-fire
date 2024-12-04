@@ -143,7 +143,7 @@ def plot_fire_occurrences(fire_df, raster_path, output_path):
     print(f"The Fire inventory map was saved as {output_path}")
     plt.show()
 
-def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_path, output_image_path, interpolate_missing=False, single_hour=True):
+def create_fire_susceptibility_map(df_prob, raster_path, fuelmod_path, fuelvat_path, output_image_path, interpolate_missing=False, single_hour=False):
     """
     Create and save a fire susceptibility map overlaid on the island outline,
     with optional interpolation for cells without assigned probabilities.
@@ -402,5 +402,5 @@ if __name__ == "__main__":
             fuelvat_path,
             susceptibility_map_path,
             interpolate_missing=True,  # Set to True if you want to interpolate missing values
-            single_hour=True
+            single_hour=False
         )
